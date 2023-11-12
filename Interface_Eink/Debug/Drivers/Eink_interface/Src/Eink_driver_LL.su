@@ -1,0 +1,9 @@
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:13:6:resetDelay	16	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:19:6:setWordToArray	16	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:24:6:resetDriver	8	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:31:6:LCDWaitForReady	8	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:41:6:LCDWriteCmdCode	24	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:66:6:LCDWriteData	24	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:88:6:LCDWriteNData	72	dynamic
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:120:10:LCDReadData	40	static
+../Drivers/Eink_interface/Src/Eink_driver_LL.c:156:6:LCDReadNData	104	dynamic

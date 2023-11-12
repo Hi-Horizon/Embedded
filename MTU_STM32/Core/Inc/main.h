@@ -61,14 +61,12 @@ void Error_Handler(void);
 #define LPUART1_TX_GPIO_Port GPIOA
 #define LPUART1_RX_Pin GPIO_PIN_3
 #define LPUART1_RX_GPIO_Port GPIOA
-#define MPPT_TX_Pin GPIO_PIN_10
-#define MPPT_TX_GPIO_Port GPIOC
-#define MPPT_RX_Pin GPIO_PIN_11
-#define MPPT_RX_GPIO_Port GPIOC
 #define GPS_TX_Pin GPIO_PIN_12
 #define GPS_TX_GPIO_Port GPIOC
 #define GPS_RX_Pin GPIO_PIN_2
 #define GPS_RX_GPIO_Port GPIOD
+#define spi3_cs_Pin GPIO_PIN_6
+#define spi3_cs_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

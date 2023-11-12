@@ -1,0 +1,10 @@
+../Drivers/Eink_interface/Src/Eink_driver.c:9:6:getIT8951Info	72	static
+../Drivers/Eink_interface/Src/Eink_driver.c:34:10:readScreenRegister	16	static
+../Drivers/Eink_interface/Src/Eink_driver.c:40:6:writeScreenRegister	16	static
+../Drivers/Eink_interface/Src/Eink_driver.c:49:6:IT8951WaitForDisplayReady	16	static
+../Drivers/Eink_interface/Src/Eink_driver.c:55:6:IT8951SetImgBufBaseAddr	24	static
+../Drivers/Eink_interface/Src/Eink_driver.c:64:6:LCDSendCmdArg	32	static
+../Drivers/Eink_interface/Src/Eink_driver.c:75:6:IT8951LoadImgAreaStart	32	static
+../Drivers/Eink_interface/Src/Eink_driver.c:90:6:IT8951LoadImgEnd	16	static
+../Drivers/Eink_interface/Src/Eink_driver.c:95:6:IT8951HostAreaPackedPixelWrite	32	static
+../Drivers/Eink_interface/Src/Eink_driver.c:118:6:IT8951DisplayArea	24	static

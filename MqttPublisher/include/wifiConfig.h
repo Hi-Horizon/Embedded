@@ -6,10 +6,15 @@
 // //wifi password
 // #define Wifi_PASSWORD ""
 
-//wifi name
+// //wifi name
 #define Wifi_SSID "philips airfryer"
 //wifi password
 #define Wifi_PASSWORD "Jeseemju01!"
+
+//wifi name
+// #define Wifi_SSID "SenneSpot"
+// //wifi password
+// #define Wifi_PASSWORD "heyhey01"
 
 //MQTT username
 #define MQTT_USER "admin"

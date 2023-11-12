@@ -1,0 +1,2 @@
+../Drivers/Eink_interface/Src/Eink_driver_ImgGen.c:9:13:getCharPixelArray	16	static
+../Drivers/Eink_interface/Src/Eink_driver_ImgGen.c:150:10:frameGenerateString	96	dynamic

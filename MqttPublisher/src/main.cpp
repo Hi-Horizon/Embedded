@@ -118,6 +118,8 @@ void loop() {
     }
     oldstaleness = staleness;
     stalenessTimer = millis();
+
+    Serial.print("status is: ");
     Serial.println(status.getStatus());
   }
   

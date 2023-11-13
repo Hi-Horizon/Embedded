@@ -30,6 +30,7 @@
 #include "string.h"
 #include "sensorParser.h"
 #include "SD_hhrt.h"
+#include "time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,6 +58,8 @@ UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_uart5_rx;
 DMA_HandleTypeDef hdma_usart1_rx;
 
+RTC_HandleTypeDef hrtc;
+
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
 
@@ -64,6 +67,10 @@ SPI_HandleTypeDef hspi3;
 
 //DataFrame
 DataFrame data;
+
+//RTC
+RTC_TimeTypeDef timer;
+RTC_DateTypeDef date;
 
 //UART
 #define GPS_BUF_SIZE 512
@@ -105,6 +112,7 @@ static void MX_LPUART1_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
 // UART
@@ -115,7 +123,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 //		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 	}
 	if (huart->Instance == UART5) { //GPS
-//		parseGPS(&data, GPS_buf, Size);
+		parseGPS(&data, GPS_buf, Size);
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 	}
 }
@@ -151,6 +159,22 @@ void sendToCan() {
 	buffer_append_uint8(TxData, data.telemetry.internetConnection, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
+}
+
+//converts rtc timestamp to unixTime
+void getRTCUnixTime() {
+	HAL_RTC_GetTime(&hrtc, &timer, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
+	struct tm tm = {};
+	tm.tm_sec = timer.Seconds;
+	tm.tm_min = timer.Minutes;
+	tm.tm_hour = timer.Hours;
+	//these below are not important but are needed for correct conversion
+	tm.tm_isdst = timer.DayLightSaving;
+	tm.tm_mday = 1;
+	tm.tm_mon = 0;
+	tm.tm_year = 70;
+	data.telemetry.unixTime = mktime(&tm); //convert a segmented timestamp to a unixTimeStamp
 }
 
 /* USER CODE END PFP */
@@ -199,12 +223,13 @@ int main(void)
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   // Mount SD card
-  sdResult = f_mount(&fs,"",0);
+  sdResult = f_mount(&fs,"/",1);
 
-  f_getfree("", &fre_clust, &pfs);
+  sdResult = f_getfree("/", &fre_clust, &pfs);
 
 	total = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space = (uint32_t)(fre_clust * pfs->csize * 0.5);
@@ -245,6 +270,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	getRTCUnixTime();
+
 	HAL_Delay(1000);
 	writeDataFrameToSD(&data, &file);
 	sendFrameToEsp(&hspi2, &data);
@@ -272,8 +299,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
@@ -532,6 +560,85 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_POS1;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
+  sTime.SubSeconds = 0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_SET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 1;
+  sDate.Year = 0;
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the TimeStamp
+  */
+  if (HAL_RTCEx_SetTimeStamp(&hrtc, RTC_TIMESTAMPEDGE_RISING, RTC_TIMESTAMPPIN_DEFAULT) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable Calibration
+  */
+  if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_512HZ) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 

@@ -1,15 +1,15 @@
 #ifndef wifiConfig_h
 #define wifiConfig_h
 
-// //wifi name
-// #define Wifi_SSID "TomatoRAF"
-// //wifi password
-// #define Wifi_PASSWORD ""
+//wifi name
+#define Wifi_SSID "TomatoRAF"
+//wifi password
+#define Wifi_PASSWORD ""
 
 // //wifi name
-#define Wifi_SSID "philips airfryer"
-//wifi password
-#define Wifi_PASSWORD "Jeseemju01!"
+// #define Wifi_SSID "philips airfryer"
+// //wifi password
+// #define Wifi_PASSWORD "Jeseemju01!"
 
 //wifi name
 // #define Wifi_SSID "SenneSpot"

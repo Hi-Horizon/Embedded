@@ -6,7 +6,8 @@
  */
 
 
-#include "sensorParser.h"
+#include "MTU/sensorParser.h"
+#include "stdio.h"
 
 bool nmeaChecksumCompare(uint8_t* buf, int packetBeginIndex, int packetEndIndex, uint8_t receivedCSbyte1, uint8_t receivedCSbyte2)
     {
@@ -153,9 +154,9 @@ void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size) {
 				}
 		}
 	}
-//	if (calculateCheskumMPPT(buf, size)) { //checksum doesnt work yet
+	if (calculateCheskumMPPT(buf, size)) { //checksum doesnt work yet
 		for (int i = 0; i < MPPT_VALUEARRAY_SIZE; i++) {
-			if (strcmp(tags[i], "P") == 0) {
+			if (strcmp(tags[i], "PPV") == 0) {
 				data->mppt.power = atoi(values[i]);
 			}
 			else if (strcmp(tags[i], "V") == 0) {
@@ -168,5 +169,74 @@ void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size) {
 				data->mppt.cs = atoi(values[i]);
 			}
 		}
-//	}
+	}
+}
+
+void handleMPPTHex(DataFrame* data, char* msg, uint16_t size) {
+	char *pos = msg + 1;
+
+	uint8_t hexLength = size/2;
+	uint8_t valueBufHex[hexLength];
+
+	for (size_t count = 0; count < hexLength; count++) {
+		sscanf(pos, "%2hhx", &valueBufHex[count]);
+		pos += 2;
+	}
+
+	//calculate checksum
+	uint8_t checksum = 0x07; //get command
+	for (int i = 0; i < hexLength; i++) {
+		checksum += valueBufHex[i];
+	}
+	if (checksum != 0x55) return;
+
+	//copy value into the dataFrame struct
+	uint16_t tag 	= ((uint16_t) valueBufHex[1] << 8) | valueBufHex[0];
+
+	uint32_t value 	= 0;
+	if (hexLength == 6) {
+		value =
+			((uint32_t) valueBufHex[4] << 8) | valueBufHex[3];
+	}
+	if (hexLength == 8) {
+		value =
+			((uint32_t) valueBufHex[6] << 24) |
+			((uint32_t) valueBufHex[5] << 16) |
+			((uint32_t) valueBufHex[4] << 8) |
+			valueBufHex[3];
+	}
+
+
+	if (tag == 0xEDD5) data->mppt.voltage = value / 100.0f;
+	if (tag == 0xEDBC) { //quick type conversion fix
+		float fltVal = value / 100.0f;
+		if (fltVal >= 65535) data->mppt.power = 65535;
+		else data->mppt.power = value / 100;
+	}
+}
+
+void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size) {
+	char message[20] = {};
+
+	bool readMessage = false;
+	int index = 0;
+	int copyIndex = 0;
+	while (index < size){
+		char c = buf[index];
+		if (c == ':') {
+			copyIndex = 0;
+			readMessage = true;
+		}
+		else if (c == '\n' && readMessage) {
+			handleMPPTHex(data, message, copyIndex);
+			copyIndex = 0;
+			readMessage = false;
+		}
+		else if (readMessage) {
+			message[copyIndex] = c;
+			copyIndex++;
+		}
+		index++;
+	}
+	//interpret chars as hex values
 }

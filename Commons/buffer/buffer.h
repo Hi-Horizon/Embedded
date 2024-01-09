@@ -1,9 +1,3 @@
-/*
- * buffer.h
- *
- *  Created on: Jan 7, 2023
- *      Author: senne
- */
 #ifndef INC_BUFFERa_H_
 #define INC_BUFFERa_H_
 

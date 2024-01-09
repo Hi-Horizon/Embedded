@@ -23,13 +23,13 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "SpiConfig.h"
-#include "ESP_SPI.h"
+#include "MTU/ESP_SPI.h"
 #include "CANparser.h"
 
 #include "fatfs_sd.h"
 #include "string.h"
-#include "sensorParser.h"
-#include "SD_hhrt.h"
+#include "MTU/sensorParser.h"
+#include "MTU/SD_hhrt.h"
 #include "time.h"
 /* USER CODE END Includes */
 
@@ -78,6 +78,11 @@ RTC_DateTypeDef date;
 
 uint8_t GPS_buf[GPS_BUF_SIZE];
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
+uint8_t mpptHex[30];
+
+bool frameDone = false;
+uint16_t bufTracker = 0;
+uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
 
 //CAN
 FDCAN_TxHeaderTypeDef MpptHeader;
@@ -118,9 +123,13 @@ static void MX_RTC_Init(void);
 // UART
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	if (huart->Instance == USART1) { //MPPT
-		parseMPPT(&data, MPPT_buf, Size);
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+//		parseMPPT(&data, MPPT_buf, Size);
+		parseMPPTHex(&data, MPPT_buf, Size);
+//		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//		MPPT_buf[Size] = '\n';
+//		MPPT_buf[Size+1] = 'N';
+//		MPPT_buf[Size+2] = '\n';
+//		bufTracker = Size+2;
 	}
 	if (huart->Instance == UART5) { //GPS
 		parseGPS(&data, GPS_buf, Size);
@@ -234,11 +243,12 @@ int main(void)
 	total = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space = (uint32_t)(fre_clust * pfs->csize * 0.5);
 
-
+	frameDone = true;
   writeDataHeaderToSD(&data, &file);
 
+
   //UART
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
 //  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
@@ -272,10 +282,24 @@ int main(void)
   {
 	getRTCUnixTime();
 
-	HAL_Delay(1000);
-	writeDataFrameToSD(&data, &file);
-	sendFrameToEsp(&hspi2, &data);
-	sendToCan();
+//	HAL_Delay(1000);
+//	writeDataFrameToSD(&data, &file);
+//	sendFrameToEsp(&hspi2, &data);
+//	sendToCan();
+
+//	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+//	f_open(&file, "mppt.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+//	FRESULT fresult = f_write(&file, &MPPT_buf, bufTracker, NULL);
+//	f_close(&file);
+//	__HAL_DMA_ENABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+	uint8_t ping[10] = {':','1','5','4', 13};
+	HAL_UART_Transmit(&huart1, ping, 5, 1000);
+	HAL_Delay(50);
+	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+	uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
+	HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
+
+	HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

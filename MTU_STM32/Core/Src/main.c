@@ -23,13 +23,18 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "SpiConfig.h"
-#include "ESP_SPI.h"
+#include "MTU/ESP_SPI.h"
 #include "CANparser.h"
 
 #include "fatfs_sd.h"
 #include "string.h"
-#include "sensorParser.h"
-#include "SD_hhrt.h"
+#include "MTU/sensorParser.h"
+#include "MTU/SD_hhrt.h"
+#include "time.h"
+
+#include "MTU/ICM20984_driver.h"
+
+#include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,6 +62,8 @@ UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_uart5_rx;
 DMA_HandleTypeDef hdma_usart1_rx;
 
+RTC_HandleTypeDef hrtc;
+
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
 
@@ -65,12 +72,24 @@ SPI_HandleTypeDef hspi3;
 //DataFrame
 DataFrame data;
 
+//RTC
+RTC_TimeTypeDef timer;
+RTC_DateTypeDef date;
+
+//timing
+uint32_t lastMPPTread = 0;
+
 //UART
 #define GPS_BUF_SIZE 512
-#define MPPT_BUF_SIZE 512
+#define MPPT_BUF_SIZE 256
 
 uint8_t GPS_buf[GPS_BUF_SIZE];
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
+uint8_t mpptHex[30];
+
+bool frameDone = false;
+uint16_t bufTracker = 0;
+uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
 
 //CAN
 FDCAN_TxHeaderTypeDef MpptHeader;
@@ -80,6 +99,12 @@ FDCAN_TxHeaderTypeDef EspHeader;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 uint32_t              TxMailbox;
+
+//IMU
+uint8_t IMU_txbuf[8];
+uint8_t IMU_rxbuf[8];
+
+HAL_StatusTypeDef IMU_status;
 
 //SD
 FATFS fs;
@@ -105,20 +130,23 @@ static void MX_LPUART1_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
 // UART
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	if (huart->Instance == USART1) { //MPPT
-		parseMPPT(&data, MPPT_buf, Size);
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+		parseMPPTHex(&data, MPPT_buf, MPPT_BUF_SIZE);
+		for (int i = 0; i < MPPT_BUF_SIZE; i++) {
+			MPPT_buf[i] = 0;
+		}
 	}
 	if (huart->Instance == UART5) { //GPS
-//		parseGPS(&data, GPS_buf, Size);
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
+		parseGPS(&data, GPS_buf, Size);
 	}
 }
+HAL_StatusTypeDef r = HAL_OK;
+uint32_t code = 0;
 
 // processes CANBUS messages
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
@@ -150,7 +178,24 @@ void sendToCan() {
 	buffer_append_uint8(TxData, data.telemetry.espStatus, &ind);
 	buffer_append_uint8(TxData, data.telemetry.internetConnection, &ind);
 
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
+	r = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
+	code = hfdcan1.ErrorCode;
+}
+
+//converts rtc timestamp to unixTime
+void getRTCUnixTime() {
+	HAL_RTC_GetTime(&hrtc, &timer, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
+	struct tm tm = {};
+	tm.tm_sec = timer.Seconds;
+	tm.tm_min = timer.Minutes;
+	tm.tm_hour = timer.Hours;
+	//these below are not important but are needed for correct conversion
+	tm.tm_isdst = timer.DayLightSaving;
+	tm.tm_mday = 1;
+	tm.tm_mon = 0;
+	tm.tm_year = 70;
+	data.telemetry.unixTime = mktime(&tm); //convert a segmented timestamp to a unixTimeStamp
 }
 
 /* USER CODE END PFP */
@@ -167,7 +212,7 @@ void sendToCan() {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+																															//!!!!!!!!
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -199,22 +244,23 @@ int main(void)
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   // Mount SD card
-  sdResult = f_mount(&fs,"",0);
+  sdResult = f_mount(&fs,"/",1);
 
-  f_getfree("", &fre_clust, &pfs);
+  sdResult = f_getfree("/", &fre_clust, &pfs);
 
 	total = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space = (uint32_t)(fre_clust * pfs->csize * 0.5);
 
-
+	frameDone = true;
   writeDataHeaderToSD(&data, &file);
 
+
   //UART
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+//  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
   //CAN INIT
@@ -243,12 +289,36 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
+  while (1)																													//!!!!!!!!!!
   {
+	getRTCUnixTime();
+
+//	IMU_txbuf[0] = REG_BANK_SEL;
+//	IMU_txbuf[1] = USER_BANK_;
+//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
+
+//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
+//	IMU_status = HAL_I2C_Master_Receive(&hi2c1, IMU_address, IMU_txbuf, 8, 1000);
+//	HAL_Delay(500);
+	//only use this to trouble shoot sending data
+//	fillRandomData(&data);
+
 	HAL_Delay(1000);
 	writeDataFrameToSD(&data, &file);
 	sendFrameToEsp(&hspi2, &data);
 	sendToCan();
+
+	if (HAL_GetTick() - lastMPPTread > 500) {
+		uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
+		uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
+		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
+
+		lastMPPTread = HAL_GetTick();
+	}
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -272,8 +342,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
@@ -323,7 +394,7 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = ENABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 17;
+  hfdcan1.Init.NominalPrescaler = 16;
   hfdcan1.Init.NominalSyncJumpWidth = 13;
   hfdcan1.Init.NominalTimeSeg1 = 39;
   hfdcan1.Init.NominalTimeSeg2 = 40;
@@ -360,7 +431,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x30909DEC;
+  hi2c1.Init.Timing = 0x00F07BFF;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -532,6 +603,85 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_POS1;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  hrtc.Init.OutPutPullUp = RTC_OUTPUT_PULLUP_NONE;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
+  sTime.SubSeconds = 0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_SET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 1;
+  sDate.Year = 0;
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the TimeStamp
+  */
+  if (HAL_RTCEx_SetTimeStamp(&hrtc, RTC_TIMESTAMPEDGE_RISING, RTC_TIMESTAMPPIN_DEFAULT) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable Calibration
+  */
+  if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_512HZ) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 

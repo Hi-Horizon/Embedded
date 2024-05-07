@@ -34,4 +34,6 @@ void parseGPS(DataFrame* data, uint8_t* buf, uint16_t size);
 
 void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size);
 
+void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size);
+
 #endif /* INC_SENSORPARSER_H_ */

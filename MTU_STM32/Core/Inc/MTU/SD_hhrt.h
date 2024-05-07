@@ -29,8 +29,8 @@ FRESULT writeDataHeaderToSD(DataFrame* data, FIL* file) {
 
 FRESULT writeDataFrameToSD(DataFrame* data, FIL* file) {
 	char row[128];
-	int size = sprintf(row, "%lu,%.3f,lu,%.3f,%.3f,\n",
-		data->telemetry.localRuntime,
+	int size = sprintf(row, "%lu,%.3f,%lu,%.3f,%.3f,\n",
+		data->telemetry.unixTime,
 		data->gps.speed,
 		data->mppt.power,
 		data->motor.battery_voltage,

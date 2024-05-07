@@ -8,6 +8,8 @@
 
 #include "MTU/sensorParser.h"
 #include "stdio.h"
+#include "stdlib.h"
+#include "ctype.h"
 
 bool nmeaChecksumCompare(uint8_t* buf, int packetBeginIndex, int packetEndIndex, uint8_t receivedCSbyte1, uint8_t receivedCSbyte2)
     {
@@ -175,44 +177,43 @@ void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size) {
 void handleMPPTHex(DataFrame* data, char* msg, uint16_t size) {
 	char *pos = msg + 1;
 
+
 	uint8_t hexLength = size/2;
 	uint8_t valueBufHex[hexLength];
 
-	for (size_t count = 0; count < hexLength; count++) {
-		sscanf(pos, "%2hhx", &valueBufHex[count]);
-		pos += 2;
+	for(int i = 0; msg[i]; i++){
+		msg[i] = tolower(msg[i]);
 	}
+
+	char* endPos;
+	uint64_t converted = (uint64_t)strtoll(pos, &endPos, 16);
 
 	//calculate checksum
 	uint8_t checksum = 0x07; //get command
-	for (int i = 0; i < hexLength; i++) {
-		checksum += valueBufHex[i];
+
+	for (int i = 56; i >= 0; i = i-8) {
+		uint8_t next = (uint8_t)((converted << (56-i)) >> 56);
+		checksum += next;
 	}
 	if (checksum != 0x55) return;
 
 	//copy value into the dataFrame struct
-	uint16_t tag 	= ((uint16_t) valueBufHex[1] << 8) | valueBufHex[0];
-
+	uint16_t tag 	= 0;
 	uint32_t value 	= 0;
+	uint64_t noChecksum = converted >> 8;
 	if (hexLength == 6) {
-		value =
-			((uint32_t) valueBufHex[4] << 8) | valueBufHex[3];
+		tag = (uint16_t)(converted >> 32);
+		value = ((noChecksum & 0xFF00) >> 8) + ((noChecksum & 0xFF) << 8);
 	}
 	if (hexLength == 8) {
-		value =
-			((uint32_t) valueBufHex[6] << 24) |
-			((uint32_t) valueBufHex[5] << 16) |
-			((uint32_t) valueBufHex[4] << 8) |
-			valueBufHex[3];
+		tag = (uint16_t) (converted >> 48);
+		value = ((noChecksum & 0xFF000000) >> 24) + ((noChecksum & 0xFF0000) >> 8) +
+				((noChecksum & 0xFF00) << 8) + ((noChecksum & 0xFF) << 24);
 	}
 
-
-	if (tag == 0xEDD5) data->mppt.voltage = value / 100.0f;
-	if (tag == 0xEDBC) { //quick type conversion fix
-		float fltVal = value / 100.0f;
-		if (fltVal >= 65535) data->mppt.power = 65535;
-		else data->mppt.power = value / 100;
-	}
+	//tags are reversed because of endian order
+	if (tag == 0xD5ED) data->mppt.voltage = value / 100.0f;
+	if (tag == 0xBCED) data->mppt.power = value / 100;
 }
 
 void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size) {

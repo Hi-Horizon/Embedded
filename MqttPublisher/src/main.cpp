@@ -140,12 +140,15 @@ void loop() {
     , dataFrame.motor.battery_current
     , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
     , dataFrame.motor.battery_voltage);
-    // Serial.println("");
-    // Serial.print(msg);
-    // Serial.println("");
+
     client->publish("data", msg);
     lastMsg = millis();
     validNewMessage = false;
+
+    //for troubleshooting purposes
+    // Serial.println("");
+    // Serial.print(msg);
+    // Serial.println("");
   }
 }
 

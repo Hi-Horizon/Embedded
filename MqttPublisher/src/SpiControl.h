@@ -16,6 +16,15 @@ bool isChecksumValid(uint8_t *msg, uint8_t messageSize) {
     else return false; 
 }
 
+
+//for debugging purposes
+// bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
+//     for (int i=0; i<32;i++) {
+//         Serial.println(data[i]);
+//     }
+//     return true;
+// }
+
 bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
     int32_t index = 0;
     int32_t bufIndex = 0;

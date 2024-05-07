@@ -31,6 +31,10 @@
 #include "MTU/sensorParser.h"
 #include "MTU/SD_hhrt.h"
 #include "time.h"
+
+#include "MTU/ICM20984_driver.h"
+
+#include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,9 +76,12 @@ DataFrame data;
 RTC_TimeTypeDef timer;
 RTC_DateTypeDef date;
 
+//timing
+uint32_t lastMPPTread = 0;
+
 //UART
 #define GPS_BUF_SIZE 512
-#define MPPT_BUF_SIZE 512
+#define MPPT_BUF_SIZE 256
 
 uint8_t GPS_buf[GPS_BUF_SIZE];
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
@@ -92,6 +99,12 @@ FDCAN_TxHeaderTypeDef EspHeader;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 uint32_t              TxMailbox;
+
+//IMU
+uint8_t IMU_txbuf[8];
+uint8_t IMU_rxbuf[8];
+
+HAL_StatusTypeDef IMU_status;
 
 //SD
 FATFS fs;
@@ -123,19 +136,17 @@ static void MX_RTC_Init(void);
 // UART
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	if (huart->Instance == USART1) { //MPPT
-//		parseMPPT(&data, MPPT_buf, Size);
-		parseMPPTHex(&data, MPPT_buf, Size);
-//		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		MPPT_buf[Size] = '\n';
-//		MPPT_buf[Size+1] = 'N';
-//		MPPT_buf[Size+2] = '\n';
-//		bufTracker = Size+2;
+		parseMPPTHex(&data, MPPT_buf, MPPT_BUF_SIZE);
+		for (int i = 0; i < MPPT_BUF_SIZE; i++) {
+			MPPT_buf[i] = 0;
+		}
 	}
 	if (huart->Instance == UART5) { //GPS
 		parseGPS(&data, GPS_buf, Size);
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 	}
 }
+HAL_StatusTypeDef r = HAL_OK;
+uint32_t code = 0;
 
 // processes CANBUS messages
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
@@ -167,7 +178,8 @@ void sendToCan() {
 	buffer_append_uint8(TxData, data.telemetry.espStatus, &ind);
 	buffer_append_uint8(TxData, data.telemetry.internetConnection, &ind);
 
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
+	r = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
+	code = hfdcan1.ErrorCode;
 }
 
 //converts rtc timestamp to unixTime
@@ -200,7 +212,7 @@ void getRTCUnixTime() {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+																															//!!!!!!!!
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -249,7 +261,6 @@ int main(void)
 
   //UART
 //  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
   //CAN INIT
@@ -278,28 +289,36 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
+  while (1)																													//!!!!!!!!!!
   {
 	getRTCUnixTime();
 
-//	HAL_Delay(1000);
-//	writeDataFrameToSD(&data, &file);
-//	sendFrameToEsp(&hspi2, &data);
-//	sendToCan();
+//	IMU_txbuf[0] = REG_BANK_SEL;
+//	IMU_txbuf[1] = USER_BANK_;
+//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
 
-//	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-//	f_open(&file, "mppt.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
-//	FRESULT fresult = f_write(&file, &MPPT_buf, bufTracker, NULL);
-//	f_close(&file);
-//	__HAL_DMA_ENABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-	uint8_t ping[10] = {':','1','5','4', 13};
-	HAL_UART_Transmit(&huart1, ping, 5, 1000);
-	HAL_Delay(50);
-	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-	uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
-	HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
+//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
+//	IMU_status = HAL_I2C_Master_Receive(&hi2c1, IMU_address, IMU_txbuf, 8, 1000);
+//	HAL_Delay(500);
+	//only use this to trouble shoot sending data
+//	fillRandomData(&data);
 
-	HAL_Delay(500);
+	HAL_Delay(1000);
+	writeDataFrameToSD(&data, &file);
+	sendFrameToEsp(&hspi2, &data);
+	sendToCan();
+
+	if (HAL_GetTick() - lastMPPTread > 500) {
+		uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
+		uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
+		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
+
+		lastMPPTread = HAL_GetTick();
+	}
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -375,7 +394,7 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = ENABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 17;
+  hfdcan1.Init.NominalPrescaler = 16;
   hfdcan1.Init.NominalSyncJumpWidth = 13;
   hfdcan1.Init.NominalTimeSeg1 = 39;
   hfdcan1.Init.NominalTimeSeg2 = 40;
@@ -412,7 +431,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x30909DEC;
+  hi2c1.Init.Timing = 0x00F07BFF;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;

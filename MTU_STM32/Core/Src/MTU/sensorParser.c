@@ -174,46 +174,45 @@ void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size) {
 	}
 }
 
+void swap(char* arr, uint8_t index1, uint8_t index2) {
+	uint8_t temp = arr[index1];
+	arr[index1] = arr[index2];
+	arr[index2] = temp;
+}
+
 void handleMPPTHex(DataFrame* data, char* msg, uint16_t size) {
-	char *pos = msg + 1;
-
-
 	uint8_t hexLength = size/2;
-	uint8_t valueBufHex[hexLength];
 
-	for(int i = 0; msg[i]; i++){
-		msg[i] = tolower(msg[i]);
+	char *tagStart = msg + 1;
+	uint8_t tagLength = 4;
+
+	char *valueStart = tagStart + tagLength + 2;
+	uint32_t value = 0;
+	if (hexLength == 6) { //payload is un16
+		char valueRaw[4] = {};
+		memcpy(valueRaw, valueStart, 4);
+		swap(valueRaw, 0, 2);
+		swap(valueRaw, 1, 3);
+
+		char *endptr;
+		value = strtoll(valueRaw, &endptr, 16);
 	}
+	if (hexLength == 8) { //payload is un32
+		char valueRaw[8] = {};
+		memcpy(valueRaw, valueStart, 8);
 
-	char* endPos;
-	uint64_t converted = (uint64_t)strtoll(pos, &endPos, 16);
+		swap(valueRaw, 0, 6);
+		swap(valueRaw, 1, 7);
+		swap(valueRaw, 2, 4);
+		swap(valueRaw, 3, 5);
 
-	//calculate checksum
-	uint8_t checksum = 0x07; //get command
-
-	for (int i = 56; i >= 0; i = i-8) {
-		uint8_t next = (uint8_t)((converted << (56-i)) >> 56);
-		checksum += next;
-	}
-	if (checksum != 0x55) return;
-
-	//copy value into the dataFrame struct
-	uint16_t tag 	= 0;
-	uint32_t value 	= 0;
-	uint64_t noChecksum = converted >> 8;
-	if (hexLength == 6) {
-		tag = (uint16_t)(converted >> 32);
-		value = ((noChecksum & 0xFF00) >> 8) + ((noChecksum & 0xFF) << 8);
-	}
-	if (hexLength == 8) {
-		tag = (uint16_t) (converted >> 48);
-		value = ((noChecksum & 0xFF000000) >> 24) + ((noChecksum & 0xFF0000) >> 8) +
-				((noChecksum & 0xFF00) << 8) + ((noChecksum & 0xFF) << 24);
+		char *endptr;
+		value = strtoll(valueRaw, &endptr, 16);
 	}
 
 	//tags are reversed because of endian order
-	if (tag == 0xD5ED) data->mppt.voltage = value / 100.0f;
-	if (tag == 0xBCED) data->mppt.power = value / 100;
+	if (strncmp(tagStart, "D5ED", tagLength)) data->mppt.voltage = value / 100.0f;
+	if (strncmp(tagStart, "BCED", tagLength)) data->mppt.power = value / 100;
 }
 
 void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size) {

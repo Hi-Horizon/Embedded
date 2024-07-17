@@ -312,9 +312,9 @@ int main(void)
 		uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
 		uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
-		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
-
+//		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
+//		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
+		handleMPPTHex(&data, "7BCED0012345678A5");
 		lastMPPTread = HAL_GetTick();
 	}
 

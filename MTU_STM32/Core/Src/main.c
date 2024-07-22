@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <MTU/MPPT_parsing.h>
 #include "main.h"
 #include "app_fatfs.h"
 
@@ -28,7 +29,6 @@
 
 #include "fatfs_sd.h"
 #include "string.h"
-#include "MTU/sensorParser.h"
 #include "MTU/SD_hhrt.h"
 #include "time.h"
 
@@ -314,7 +314,9 @@ int main(void)
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
 //		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
 //		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
-		handleMPPTHex(&data, "7BCED0012345678A5");
+
+		// test for the MPPT hex message parsing
+//		handleMPPTHex(&data, "7BCED0012345678A5", 17);
 		lastMPPTread = HAL_GetTick();
 	}
 

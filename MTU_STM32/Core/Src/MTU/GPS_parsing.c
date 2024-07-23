@@ -7,24 +7,43 @@
 
 #include <MTU/GPS_parsing.h>
 
-void parseGPS(DataFrame* data, uint8_t* buf, uint16_t size) {
-	int beginMessage = 0;
-	int endMessage = 0;
-	bool insideMessage = false;
-	for (int i = 0; i < size; i++) {
-		char c = buf[i];
-		if (c == '$') {
-			insideMessage = true;
-			beginMessage = i;
-			endMessage = i;
-		}
-		if (c == '\r' || endMessage - beginMessage >= 80) {
-			insideMessage = false;
-			if (endMessage - beginMessage < 80) parseNMEA(data, buf, beginMessage, endMessage);
-		}
+int8_t counter = -1;
+uint8_t arraypos = 0;
+bool counting = false;
 
-		if (insideMessage == true) {
-			endMessage++;
+uint8_t time_gps[10]; // hhmmss.sss
+uint8_t status[1]; // A = data valid, V = data not valid
+uint8_t latitude[9]; // ddmm.mmmm
+uint8_t NS_indicator[1]; // N = north, S = south
+uint8_t longitude[10]; // dddmm.mmmm
+uint8_t EW_indicator[1]; // E = east, W = west
+uint8_t speed_knots[7]; // Max velocity = 1001.08 knots
+uint8_t course[6]; //Course over ground in degrees
+uint8_t date_gps[6]; // ddmmyy
+uint8_t speed_kmh[7]; // Max velocity = 1854.00 km/h
+
+uint8_t *GPS_data_raw[10] = {time_gps, status, latitude, NS_indicator, longitude, EW_indicator, speed_knots, course, date_gps, speed_kmh};
+
+void parseGPS(uint8_t* buf, uint16_t size) {
+	for (uint16_t i = 0; i < size; i++) {
+		uint8_t data = buf[i];
+		if(data == 'C') {
+			counting = true;
+			counter = -1;
+		}
+		else if(data == ',' && counting) {//Next data
+			counter++;
+			arraypos = 0;
+		} else if(counting) { // Save data
+			if(counter < 9) { // RMC data
+				GPS_data_raw[counter][arraypos] = data;
+				arraypos++;
+			} else if(counter == 18){ // Speed in km/h, because somehow it is not RMC data
+				GPS_data_raw[9][arraypos] = data;
+				arraypos++;
+			} else if(counter > 18) { // Data complete
+				counting = false;
+			}
 		}
 	}
 }
@@ -33,7 +52,7 @@ bool nmeaChecksumCompare(uint8_t* buf, int packetBeginIndex, int packetEndIndex,
     {
       uint8_t calcChecksum = 0;
 
-      for(uint8_t i=packetBeginIndex + 1; i<packetEndIndex-3; ++i) // packetEndIndex is the "size" of the packet minus 1. Loop from 1 to packetEndIndex-4 because the checksum is calculated between $ and *
+      for(uint16_t i=packetBeginIndex + 1; i<packetEndIndex-3; ++i) // packetEndIndex is the "size" of the packet minus 1. Loop from 1 to packetEndIndex-4 because the checksum is calculated between $ and *
       {
         calcChecksum = calcChecksum^buf[i];
       }
@@ -67,7 +86,9 @@ void parseNMEA(DataFrame* data, uint8_t* buf, int beginIndex, int endMessage) {
 	if (strcmp(nmea, "GPGGA") == 0) {
 		current++;
 		int ind = 0;
-		while (buf[current] != ',') {} //skip Time for now
+		while (buf[current] != ',') {
+			current++;
+		} //skip Time for now
 		while (buf[current] != ',') {
 			current++;
 			val[ind] = buf[current];
@@ -96,5 +117,27 @@ void parseNMEA(DataFrame* data, uint8_t* buf, int beginIndex, int endMessage) {
 						ind++;
 			}
 			data->gps.speed = atof(val);
+	}
+}
+
+void oldParseGPS(DataFrame* data, uint8_t* buf, uint16_t size) {
+	int beginMessage = 0;
+	int endMessage = 0;
+	bool insideMessage = false;
+	for (int i = 0; i < size; i++) {
+		char c = buf[i];
+		if (c == '$') {
+			insideMessage = true;
+			beginMessage = i;
+			endMessage = i;
+		}
+		if (c == '\r' || endMessage - beginMessage >= 80) {
+			insideMessage = false;
+			if (endMessage - beginMessage < 80) parseNMEA(data, buf, beginMessage, endMessage);
+		}
+
+		if (insideMessage == true) {
+			endMessage++;
+		}
 	}
 }

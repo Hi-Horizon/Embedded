@@ -17,7 +17,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <MTU/MPPT_parsing.h>
 #include "main.h"
 #include "app_fatfs.h"
 
@@ -33,7 +32,8 @@
 #include "time.h"
 
 #include "MTU/ICM20984_driver.h"
-
+#include "MTU/MPPT_parsing.h"
+#include "MTU/GPS_parsing.h"
 #include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
 
@@ -80,10 +80,14 @@ RTC_DateTypeDef date;
 uint32_t lastMPPTread = 0;
 
 //UART
-#define GPS_BUF_SIZE 512
+#define GPS_BUF_SIZE 1024
 #define MPPT_BUF_SIZE 256
 
 uint8_t GPS_buf[GPS_BUF_SIZE];
+uint8_t GPS_work_buf[GPS_BUF_SIZE];
+uint16_t GPS_buf_index = 0;
+uint16_t GPS_RX_msg_size = 0;
+
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
 uint8_t mpptHex[30];
 
@@ -137,12 +141,45 @@ static void MX_RTC_Init(void);
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	if (huart->Instance == USART1) { //MPPT
 		parseMPPTHex(&data, MPPT_buf, MPPT_BUF_SIZE);
-		for (int i = 0; i < MPPT_BUF_SIZE; i++) {
+		for (uint16_t i = 0; i < MPPT_BUF_SIZE; i++) {
 			MPPT_buf[i] = 0;
 		}
 	}
 	if (huart->Instance == UART5) { //GPS
-		parseGPS(&data, GPS_buf, Size);
+		if (Size != GPS_buf_index) { // check if new data has been received
+		    /* Check if position of index in reception buffer has simply be increased
+		       of if end of buffer has been reached */
+
+		    if (Size > GPS_buf_index) { /* Current position is higher than previous one */
+
+		    	GPS_RX_msg_size = Size - GPS_buf_index;
+
+				/* Copy received data in "User" buffer for evacuation */
+				for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
+					GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
+				}
+		    }
+		    else { /* Current position is lower than previous one : end of buffer has been reached */
+
+		      /* First copy data from current position till end of buffer */
+		      GPS_RX_msg_size = GPS_BUF_SIZE - GPS_buf_index;
+		      /* Copy received data in "User" buffer for evacuation */
+		      for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
+		    	  GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
+		      }
+		      /* Check and continue with beginning of buffer */
+		      if (Size > 0)
+		      {
+		        for (uint16_t i = 0; i < Size; i++) {
+		        	GPS_work_buf[GPS_RX_msg_size + i] = GPS_buf[i];
+		        }
+		        GPS_RX_msg_size += Size;
+		      }
+		    }
+
+			parseGPS(GPS_work_buf, GPS_RX_msg_size);
+			GPS_buf_index = Size;
+		}
 	}
 }
 HAL_StatusTypeDef r = HAL_OK;
@@ -260,7 +297,7 @@ int main(void)
 
 
   //UART
-//  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
   //CAN INIT
@@ -784,6 +821,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMAMUX_OVR_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMAMUX_OVR_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMAMUX_OVR_IRQn);
 
 }
 

@@ -24,6 +24,8 @@
 #define GPS_GPGGA 0
 #define GPS_GPVTG 1
 
-void parseGPS(DataFrame* data, uint8_t* buf, uint16_t size);
+void parseGPS(uint8_t* buf, uint16_t size);
+void GPS_bufferToDataFrame(DataFrame* data);
+void oldParseGPS(DataFrame* data, uint8_t* buf, uint16_t size);
 
 #endif /* INC_MTU_GPS_PARSING_H_ */

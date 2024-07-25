@@ -11,18 +11,18 @@ int8_t counter = -1;
 uint8_t arraypos = 0;
 bool counting = false;
 
-uint8_t time_gps[10]; // hhmmss.sss
-uint8_t status[1]; // A = data valid, V = data not valid
-uint8_t latitude[9]; // ddmm.mmmm
-uint8_t NS_indicator[1]; // N = north, S = south
-uint8_t longitude[10]; // dddmm.mmmm
-uint8_t EW_indicator[1]; // E = east, W = west
-uint8_t speed_knots[7]; // Max velocity = 1001.08 knots
-uint8_t course[6]; //Course over ground in degrees
-uint8_t date_gps[6]; // ddmmyy
-uint8_t speed_kmh[7]; // Max velocity = 1854.00 km/h
+char raw_time[10]; // hhmmss.sss
+char raw_status[1]; // A = data valid, V = data not valid
+char raw_latitude[9]; // ddmm.mmmm
+char raw_NS_indicator[1]; // N = north, S = south
+char raw_longitude[10]; // dddmm.mmmm
+char raw_EW_indicator[1]; // E = east, W = west
+char raw_speed_knots[7]; // Max velocity = 1001.08 knots
+char raw_course[6]; //Course over ground in degrees
+char raw_date[6]; // ddmmyy
+char raw_speed_kmh[7]; // Max velocity = 1854.00 km/h
 
-uint8_t *GPS_data_raw[10] = {time_gps, status, latitude, NS_indicator, longitude, EW_indicator, speed_knots, course, date_gps, speed_kmh};
+char *GPS_data_raw[10] = {raw_time, raw_status, raw_latitude, raw_NS_indicator, raw_longitude, raw_EW_indicator, raw_speed_knots, raw_course, raw_date, raw_speed_kmh};
 
 void parseGPS(uint8_t* buf, uint16_t size) {
 	for (uint16_t i = 0; i < size; i++) {
@@ -46,6 +46,21 @@ void parseGPS(uint8_t* buf, uint16_t size) {
 			}
 		}
 	}
+}
+
+//puts the raw data from gps into a dataframe
+void GPS_bufferToDataFrame(DataFrame* data) {
+	//A is fix, V is no fix
+	if (raw_status[0] == 'A') {
+		data->gps.fix = 1;
+	} else {
+		data->gps.fix = 0;
+	}
+
+	data->telemetry.strategyRuntime = atof(raw_time);
+	data->gps.speed = atof(raw_speed_kmh);
+	data->gps.lat = atof(raw_latitude);
+	data->gps.lng = atof(raw_longitude);
 }
 
 bool nmeaChecksumCompare(uint8_t* buf, int packetBeginIndex, int packetEndIndex, uint8_t receivedCSbyte1, uint8_t receivedCSbyte2)

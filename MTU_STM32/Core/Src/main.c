@@ -81,19 +81,21 @@ uint32_t lastMPPTread = 0;
 
 //UART
 #define GPS_BUF_SIZE 1024
-#define MPPT_BUF_SIZE 256
-
 uint8_t GPS_buf[GPS_BUF_SIZE];
 uint8_t GPS_work_buf[GPS_BUF_SIZE];
 uint16_t GPS_buf_index = 0;
 uint16_t GPS_RX_msg_size = 0;
 
+#define MPPT_BUF_SIZE 256
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
-uint8_t mpptHex[30];
-
-bool frameDone = false;
-uint16_t bufTracker = 0;
 uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
+uint8_t mpptHex[30];
+uint16_t bufTracker = 0;
+bool frameDone = false;
+
+//MPPThex request messages
+uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
+uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
 
 //CAN
 FDCAN_TxHeaderTypeDef MpptHeader;
@@ -345,11 +347,11 @@ int main(void)
 	sendFrameToEsp(&hspi2, &data);
 	sendToCan();
 
+	GPS_bufferToDataFrame(&data);
+
 	if (HAL_GetTick() - lastMPPTread > 500) {
-		uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
-		uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
+		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
 //		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
 
 		// test for the MPPT hex message parsing

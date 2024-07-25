@@ -11,17 +11,8 @@
 #include "DataFrame.h"
 #include "stdlib.h"
 #include "string.h"
-
-#define GPS_PARSE_NONE 0
-#define GPS_PARSE_ID 0
-#define GPS_PARSE_value 1
-#define GPS_PARSE_checksum 2
-
-#define GPS_NONE -1
-#define GPS_GPGGA 0
-#define GPS_GPVTG 1
-
-void parseGPS(DataFrame* data, uint8_t* buf, uint16_t size);
+#include "stdio.h"
+#include "ctype.h"
 
 #define MPPT_P 0
 #define MPPT_V 1
@@ -35,5 +26,6 @@ void parseGPS(DataFrame* data, uint8_t* buf, uint16_t size);
 void parseMPPT(DataFrame* data, uint8_t* buf, uint16_t size);
 
 void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size);
+void handleMPPTHex(DataFrame* data, char* msg, uint16_t size);
 
 #endif /* INC_SENSORPARSER_H_ */

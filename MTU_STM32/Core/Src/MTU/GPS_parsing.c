@@ -27,15 +27,15 @@ char *GPS_data_raw[10] = {raw_time, raw_status, raw_latitude, raw_NS_indicator, 
 void parseGPS(uint8_t* buf, uint16_t size) {
 	for (uint16_t i = 0; i < size; i++) {
 		uint8_t data = buf[i];
-		if(data == 'C') {
+		if(data == 'R') {
 			counting = true;
-			counter = -1;
+			counter = -3;
 		}
 		else if(data == ',' && counting) {//Next data
 			counter++;
 			arraypos = 0;
 		} else if(counting) { // Save data
-			if(counter < 9) { // RMC data
+			if(counter >= 0 && counter < 9) { // RMC data
 				GPS_data_raw[counter][arraypos] = data;
 				arraypos++;
 			} else if(counter == 18){ // Speed in km/h, because somehow it is not RMC data

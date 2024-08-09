@@ -44,6 +44,9 @@ void parseGPS(uint8_t* buf, uint16_t size) {
 			} else if(counter > 18) { // Data complete
 				counting = false;
 			}
+			else {
+				counter++;
+			}
 		}
 	}
 }

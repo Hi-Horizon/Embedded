@@ -119,9 +119,11 @@ void handleMPPTHex(DataFrame* data, char* msg, uint16_t size) {
 	// strncmp gives 0 when the string is equal
 	if (strncmp(tagStart, "D5ED", tagLength) == 0) {
 		data->mppt.voltage = value / 100.0f;
+		data->gps.last_msg = data->telemetry.unixTime;
 	}
 	if (strncmp(tagStart, "BCED", tagLength) == 0) {
 		data->mppt.power = value / 100;
+		data->gps.last_msg = data->telemetry.unixTime;
 	}
 }
 

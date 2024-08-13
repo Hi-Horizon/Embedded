@@ -10,6 +10,7 @@
 int8_t counter = -1;
 uint8_t arraypos = 0;
 bool counting = false;
+bool new_msg = false;
 
 char raw_time[10]; // hhmmss.sss
 char raw_status[1]; // A = data valid, V = data not valid
@@ -43,6 +44,7 @@ void parseGPS(uint8_t* buf, uint16_t size) {
 				arraypos++;
 			} else if(counter > 18) { // Data complete
 				counting = false;
+				new_msg = true;
 			}
 			else {
 				counter++;
@@ -53,13 +55,17 @@ void parseGPS(uint8_t* buf, uint16_t size) {
 
 //puts the raw data from gps into a dataframe
 void GPS_bufferToDataFrame(DataFrame* data) {
+	//checks if a new message has been parsed from the buffer
+	if (!new_msg) return;
+	data->gps.last_msg = data->telemetry.unixTime;
+	new_msg = false;
+
 	//A is fix, V is no fix
 	if (raw_status[0] == 'A') {
 		data->gps.fix = 1;
 	} else {
 		data->gps.fix = 0;
 	}
-
 	data->telemetry.strategyRuntime = atof(raw_time);
 	data->gps.speed = atof(raw_speed_kmh);
 	data->gps.lat = atof(raw_latitude);

@@ -65,7 +65,11 @@ bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
 
     index = 0;
 
-    uint8_t staleness = buffer_get_uint16(buf, &index);
+    //makes the frame too large, a new frame system needs to be created
+    // dataFrame->mppt.last_msg = buffer_get_uint32(buf, &index);
+
+    dataFrame->telemetry.unixTime = buffer_get_uint32(buf, &index);
+
     dataFrame->gps.lat = buffer_get_float32(buf, 100, &index);
     dataFrame->gps.lng = buffer_get_float32(buf, 100, &index);
     dataFrame->gps.speed = buffer_get_float32(buf, 100, &index);

@@ -23,14 +23,18 @@ uint8_t calculateChecksum(uint8_t *msg, uint8_t messageSize) {
 void sendFrameToEsp(SPI_HandleTypeDef *spi, DataFrame* data) {
   uint8_t transfercode[2] = {0x02, 0x00};
 
-  uint16_t millis = 0;
   int32_t index = 0;
   int32_t index2 = 0;
   uint8_t buf[32] = {};
   uint8_t msg[32] = {};
 
 //  uint16_t millis = (uint16_t) (HAL_GetTick() && 0x0000FFFF);
-  buffer_append_uint16(buf, millis, &index);
+
+
+  buffer_append_uint32(buf, data->telemetry.unixTime, &index);
+  //makes the frame too large, a new frame system needs to be created
+  //buffer_append_uint32(buf, data->mppt.last_msg, &index);
+
   buffer_append_float32(buf, data->gps.lat, 100, &index);
   buffer_append_float32(buf, data->gps.lng, 100, &index);
   buffer_append_float32(buf, data->gps.speed, 100, &index);

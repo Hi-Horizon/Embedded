@@ -116,8 +116,13 @@ void handleMPPTHex(DataFrame* data, char* msg, uint16_t size) {
 	}
 
 	//tags are reversed because of endian order
-	if (strncmp(tagStart, "D5ED", tagLength)) data->mppt.voltage = value / 100.0f;
-	if (strncmp(tagStart, "BCED", tagLength)) data->mppt.power = value / 100;
+	// strncmp gives 0 when the string is equal
+	if (strncmp(tagStart, "D5ED", tagLength) == 0) {
+		data->mppt.voltage = value / 100.0f;
+	}
+	if (strncmp(tagStart, "BCED", tagLength) == 0) {
+		data->mppt.power = value / 100;
+	}
 }
 
 void parseMPPTHex(DataFrame* data, uint8_t* buf, uint16_t size) {

@@ -22,6 +22,7 @@ typedef struct
         float bms_temp;
         float cells_temp;
         float env_temp;
+        uint32_t staleness;
 } BMS_data;
 
 typedef struct
@@ -43,6 +44,7 @@ typedef struct
 
         float capacity;
         float term_voltage;
+        uint32_t staleness;
 } Motorcontroller_data;
 
 typedef struct
@@ -53,12 +55,14 @@ typedef struct
 
         uint8_t error;
         uint8_t cs;
+        uint32_t staleness;
 } MPPT_data;
 
 typedef struct
 {
         uint8_t temp;
         bool fans;
+        uint32_t staleness;
 } Screen_data;
 
 typedef struct
@@ -75,6 +79,7 @@ typedef struct
 
         float Pmotor;
         uint32_t strategyRuntime;
+        uint32_t staleness;
 } Telemetry_data;
 
 typedef struct
@@ -86,6 +91,7 @@ typedef struct
 
         uint8_t fix;
         uint8_t antenna;
+        uint32_t staleness;
 } GPS_data;
 
 typedef struct {

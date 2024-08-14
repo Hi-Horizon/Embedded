@@ -344,7 +344,7 @@ int main(void)
 
 	HAL_Delay(1000);
 	writeDataFrameToSD(&data, &file);
-	sendFrameToEsp(&hspi2, &data);
+	sendDataToEsp(&hspi2, &data);
 	sendToCan();
 
 	GPS_bufferToDataFrame(&data);

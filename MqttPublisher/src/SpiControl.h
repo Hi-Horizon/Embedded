@@ -18,68 +18,74 @@ bool isChecksumValid(uint8_t *msg, uint8_t messageSize) {
 
 
 //for debugging purposes
-// bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
-//     for (int i=0; i<32;i++) {
-//         Serial.println(data[i]);
-//     }
-//     return true;
-// }
-
 bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
-    int32_t index = 0;
-    int32_t bufIndex = 0;
-    uint8_t buf[32] = {};
-
-    while(index < 32) { //search for the header byte
-        if (data[index] == SpiHeaderByte) break;
-        index++;
+    for (int i=0; i<32;i++) {
+        Serial.println(data[i]);
     }
-    index++;
-    while(index < 32) { 
-        uint8_t next = data[index];
-
-        if (next == SpiHeaderByte) { //wrong header byte
-            Serial.println("wrong header byte");
-            return false;
-        } 
-        if (next == SpiTrailerByte) break; //end of message
-        if (next == SpiFlagByte) {
-            index++;
-            buf[bufIndex++] = data[index]; //frame byte as actual data
-        }
-        else {
-            buf[bufIndex++] = next;
-        } //generic byte
-        index++;
-    }
-    if (bufIndex < 24) { //parts of the frame is missing
-        Serial.println("parts of the frame is missing");
-        return false;
-    } 
-
-    if (!isChecksumValid(buf, bufIndex)) {
-        Serial.println("checksum failed");
-        return false;
-    }
-
-
-    index = 0;
-
-    //makes the frame too large, a new frame system needs to be created
-    // dataFrame->mppt.last_msg = buffer_get_uint32(buf, &index);
-
-    dataFrame->telemetry.unixTime = buffer_get_uint32(buf, &index);
-
-    dataFrame->gps.lat = buffer_get_float32(buf, 100, &index);
-    dataFrame->gps.lng = buffer_get_float32(buf, 100, &index);
-    dataFrame->gps.speed = buffer_get_float32(buf, 100, &index);
-
-    dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
-    dataFrame->motor.battery_voltage = buffer_get_float32(buf, 100, &index);
-
-    dataFrame->mppt.power = buffer_get_uint16(buf, &index);
     return true;
 }
+
+void parsePayload(DataFrame *dataFrame, uint8_t *buf) {
+    int32_t index = 0;
+    uint8_t id = buffer_get_uint8(buf, &index);
+
+    switch(id) {
+        case 1:
+            dataFrame->telemetry.unixTime   = buffer_get_uint32(buf, &index);
+            dataFrame->mppt.last_msg        = buffer_get_uint32(buf, &index);
+            dataFrame->gps.last_msg         = buffer_get_uint32(buf, &index);
+            break;
+        case 2:
+            dataFrame->gps.lat      = buffer_get_float32(buf, 100, &index);
+            dataFrame->gps.lng      = buffer_get_float32(buf, 100, &index);
+            dataFrame->gps.speed    = buffer_get_float32(buf, 100, &index);
+            break;
+        case 3:
+            dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
+            dataFrame->motor.battery_voltage = buffer_get_float32(buf, 100, &index);
+            dataFrame->mppt.power = buffer_get_uint16(buf, &index);
+            break;
+    }
+}
+
+// bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
+//     int32_t index = 0;
+//     int32_t bufIndex = 0;
+//     uint8_t buf[32] = {};
+
+//     while(index < 32) { //search for the header byte
+//         if (data[index] == SpiHeaderByte) break;
+//         index++;
+//     }
+//     index++;
+//     while(index < 32) { 
+//         uint8_t next = data[index];
+
+//         if (next == SpiHeaderByte) { //wrong header byte
+//             Serial.println("wrong header byte");
+//             return false;
+//         } 
+//         if (next == SpiTrailerByte) break; //end of message
+//         if (next == SpiFlagByte) {
+//             index++;
+//             buf[bufIndex++] = data[index]; //frame byte as actual data
+//         }
+//         else {
+//             buf[bufIndex++] = next;
+//         } //generic byte
+//         index++;
+//     }
+
+//     Serial.println(buf[0]);
+//     if (!isChecksumValid(buf, bufIndex)) {
+//         // Serial.println("checksum failed");
+//         // Serial.println(buf[bufIndex]);
+//         return false;
+//     }
+    
+//     parsePayload(dataFrame, buf);
+//     return true;
+// }
 
 void append_with_stuffing(uint8_t *buffer, uint8_t byte, int32_t *index) {
     if (byte == SpiHeaderByte || byte == SpiFlagByte || byte == SpiTrailerByte) {

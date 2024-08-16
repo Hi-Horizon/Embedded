@@ -179,7 +179,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		      }
 		    }
 
-			parseGPS(GPS_work_buf, GPS_RX_msg_size);
+		    parseGPS(GPS_work_buf, GPS_RX_msg_size);
 			GPS_buf_index = Size;
 		}
 	}
@@ -299,7 +299,15 @@ int main(void)
 
 
   //UART
+
+  //clear the RDR register to avoid overrun error
+  volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
+  (void)tempUARTrdr;
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+
+  //clear the RDR register to avoid overrun error
+  tempUARTrdr = huart5.Instance->RDR;
+  (void)tempUARTrdr;
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
   //CAN INIT
@@ -341,6 +349,12 @@ int main(void)
 //	HAL_Delay(500);
 	//only use this to trouble shoot sending data
 //	fillRandomData(&data);
+
+	//if gps has overrun error, clear rdr buffer
+	if (huart5.ErrorCode & 8) {
+		tempUARTrdr = huart5.Instance->RDR;
+		(void)tempUARTrdr;
+	}
 
 	HAL_Delay(1000);
 	writeDataFrameToSD(&data, &file);

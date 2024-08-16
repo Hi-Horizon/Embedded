@@ -20,9 +20,8 @@ char raw_EW_indicator[1]; // E = east, W = west
 char raw_speed_knots[7]; // Max velocity = 1001.08 knots
 char raw_course[6]; //Course over ground in degrees
 char raw_date[6]; // ddmmyy
-char raw_speed_kmh[7]; // Max velocity = 1854.00 km/h
 
-char *GPS_data_raw[10] = {raw_time, raw_status, raw_latitude, raw_NS_indicator, raw_longitude, raw_EW_indicator, raw_speed_knots, raw_course, raw_date, raw_speed_kmh};
+char *GPS_data_raw[9] = {raw_time, raw_status, raw_latitude, raw_NS_indicator, raw_longitude, raw_EW_indicator, raw_speed_knots, raw_course, raw_date};
 
 void parseGPS(uint8_t* buf, uint16_t size) {
 	for (uint16_t i = 0; i < size; i++) {
@@ -38,10 +37,7 @@ void parseGPS(uint8_t* buf, uint16_t size) {
 			if(counter >= 0 && counter < 9) { // RMC data
 				GPS_data_raw[counter][arraypos] = data;
 				arraypos++;
-			} else if(counter == 18){ // Speed in km/h, because somehow it is not RMC data
-				GPS_data_raw[9][arraypos] = data;
-				arraypos++;
-			} else if(counter > 18) { // Data complete
+			} else if (counter >= 9) { // Data complete
 				counting = false;
 			}
 			else {
@@ -61,7 +57,7 @@ void GPS_bufferToDataFrame(DataFrame* data) {
 	}
 
 	data->telemetry.strategyRuntime = atof(raw_time);
-	data->gps.speed = atof(raw_speed_kmh);
+	data->gps.speed = atof(raw_speed_knots) * 1.852; //conversion from knots to km/h
 	data->gps.lat = atof(raw_latitude);
 	data->gps.lng = atof(raw_longitude);
 }

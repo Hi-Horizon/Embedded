@@ -17,6 +17,9 @@ FRESULT writeDataHeaderToSD(DataFrame* data, FIL* file) {
 	const char* header =
 		"\n"
 		"time,"
+		"gps_fix,"
+		"latitude,"
+		"longitude,"
 		"speed,"
 		"pZon,"
 		"batteryVoltage,"
@@ -30,8 +33,11 @@ FRESULT writeDataHeaderToSD(DataFrame* data, FIL* file) {
 
 FRESULT writeDataFrameToSD(DataFrame* data, FIL* file) {
 	char row[128];
-	int size = sprintf(row, "%lu,%.3f,%hu,%.3f,%.3f,\n",
+	int size = sprintf(row, "%lu,%u,%.4f,%.4f,%.3f,%hu,%.3f,%.3f,\n",
 		data->telemetry.unixTime,
+		data->gps.fix,
+		data->gps.lat,
+		data->gps.lng,
 		data->gps.speed,
 		data->mppt.power,
 		data->motor.battery_voltage,

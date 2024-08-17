@@ -128,6 +128,8 @@ void loop() {
     snprintf (msg, MSG_BUFFER_SIZE, 
       "{"
       "\"unixTime\":%u,"
+      "\"gpsT\":%u,"
+      "\"mpptT\":%u,"
       "\"v\":%f,"
       "\"Pz\":%i,"
       "\"mc\":%f,"
@@ -135,13 +137,15 @@ void loop() {
       "\"vm\":%f"
       "}"
     , dataFrame.telemetry.unixTime
+    , dataFrame.gps.last_msg
+    , dataFrame.mppt.last_msg
     , dataFrame.gps.speed
     , dataFrame.mppt.power
     , dataFrame.motor.battery_current
     , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
     , dataFrame.motor.battery_voltage);
 
-    client->publish("data", msg);
+    Serial.println(client->publish("data", msg));
     lastMsg = millis();
     validNewMessage = false;
 

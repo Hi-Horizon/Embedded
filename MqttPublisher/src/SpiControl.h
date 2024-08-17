@@ -25,17 +25,40 @@ bool isChecksumValid(uint8_t *msg, uint8_t messageSize) {
 //     return true;
 // }
 
-bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
+void parsePayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 0;
+    uint8_t id = buffer_get_uint8(buf, &index);
+
+    switch(id) {
+        case 1:
+            dataFrame->telemetry.unixTime   = buffer_get_uint32(buf, &index);
+            dataFrame->mppt.last_msg        = buffer_get_uint32(buf, &index);
+            dataFrame->gps.last_msg         = buffer_get_uint32(buf, &index);
+            break;
+        case 2:
+            dataFrame->gps.lat      = buffer_get_float32(buf, 100, &index);
+            dataFrame->gps.lng      = buffer_get_float32(buf, 100, &index);
+            dataFrame->gps.speed    = buffer_get_float32(buf, 100, &index);
+            break;
+        case 3:
+            dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
+            dataFrame->motor.battery_voltage = buffer_get_float32(buf, 100, &index);
+            dataFrame->mppt.power = buffer_get_uint16(buf, &index);
+            break;
+    }
+}
+
+bool receiveSpiData(DataFrame *dataFrame, uint8_t *data, size_t len) {
+    size_t index = 0;
     int32_t bufIndex = 0;
     uint8_t buf[32] = {};
 
-    while(index < 32) { //search for the header byte
+    while(index < len) { //search for the header byte
         if (data[index] == SpiHeaderByte) break;
         index++;
     }
     index++;
-    while(index < 32) { 
+    while(index < len) { 
         uint8_t next = data[index];
 
         if (next == SpiHeaderByte) { //wrong header byte
@@ -52,28 +75,15 @@ bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
         } //generic byte
         index++;
     }
-    if (bufIndex < 24) { //parts of the frame is missing
-        Serial.println("parts of the frame is missing");
-        return false;
-    } 
 
+    // Serial.println(buf[0]);
     if (!isChecksumValid(buf, bufIndex)) {
-        Serial.println("checksum failed");
+        // Serial.println("checksum failed");
+        // Serial.println(buf[bufIndex]);
         return false;
     }
-
-
-    index = 0;
-
-    uint8_t staleness = buffer_get_uint16(buf, &index);
-    dataFrame->gps.lat = buffer_get_float32(buf, 100, &index);
-    dataFrame->gps.lng = buffer_get_float32(buf, 100, &index);
-    dataFrame->gps.speed = buffer_get_float32(buf, 100, &index);
-
-    dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
-    dataFrame->motor.battery_voltage = buffer_get_float32(buf, 100, &index);
-
-    dataFrame->mppt.power = buffer_get_uint16(buf, &index);
+    
+    parsePayload(dataFrame, buf);
     return true;
 }
 

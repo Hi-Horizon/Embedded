@@ -340,7 +340,7 @@ int main(void)
 //	IMU_status = HAL_I2C_Master_Receive(&hi2c1, IMU_address, IMU_txbuf, 8, 1000);
 //	HAL_Delay(500);
 	//only use this to trouble shoot sending data
-	fillRandomData(&data);
+//	fillRandomData(&data);
 
 	HAL_Delay(1000);
 	writeDataFrameToSD(&data, &file);

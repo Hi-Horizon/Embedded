@@ -18,12 +18,12 @@ bool isChecksumValid(uint8_t *msg, uint8_t messageSize) {
 
 
 //for debugging purposes
-bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
-    for (int i=0; i<32;i++) {
-        Serial.println(data[i]);
-    }
-    return true;
-}
+// bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
+//     for (int i=0; i<32;i++) {
+//         Serial.println(data[i]);
+//     }
+//     return true;
+// }
 
 void parsePayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 0;
@@ -48,44 +48,44 @@ void parsePayload(DataFrame *dataFrame, uint8_t *buf) {
     }
 }
 
-// bool receiveSpiData(DataFrame *dataFrame, uint8_t *data) {
-//     int32_t index = 0;
-//     int32_t bufIndex = 0;
-//     uint8_t buf[32] = {};
+bool receiveSpiData(DataFrame *dataFrame, uint8_t *data, size_t len) {
+    size_t index = 0;
+    int32_t bufIndex = 0;
+    uint8_t buf[32] = {};
 
-//     while(index < 32) { //search for the header byte
-//         if (data[index] == SpiHeaderByte) break;
-//         index++;
-//     }
-//     index++;
-//     while(index < 32) { 
-//         uint8_t next = data[index];
+    while(index < len) { //search for the header byte
+        if (data[index] == SpiHeaderByte) break;
+        index++;
+    }
+    index++;
+    while(index < len) { 
+        uint8_t next = data[index];
 
-//         if (next == SpiHeaderByte) { //wrong header byte
-//             Serial.println("wrong header byte");
-//             return false;
-//         } 
-//         if (next == SpiTrailerByte) break; //end of message
-//         if (next == SpiFlagByte) {
-//             index++;
-//             buf[bufIndex++] = data[index]; //frame byte as actual data
-//         }
-//         else {
-//             buf[bufIndex++] = next;
-//         } //generic byte
-//         index++;
-//     }
+        if (next == SpiHeaderByte) { //wrong header byte
+            Serial.println("wrong header byte");
+            return false;
+        } 
+        if (next == SpiTrailerByte) break; //end of message
+        if (next == SpiFlagByte) {
+            index++;
+            buf[bufIndex++] = data[index]; //frame byte as actual data
+        }
+        else {
+            buf[bufIndex++] = next;
+        } //generic byte
+        index++;
+    }
 
-//     Serial.println(buf[0]);
-//     if (!isChecksumValid(buf, bufIndex)) {
-//         // Serial.println("checksum failed");
-//         // Serial.println(buf[bufIndex]);
-//         return false;
-//     }
+    // Serial.println(buf[0]);
+    if (!isChecksumValid(buf, bufIndex)) {
+        // Serial.println("checksum failed");
+        // Serial.println(buf[bufIndex]);
+        return false;
+    }
     
-//     parsePayload(dataFrame, buf);
-//     return true;
-// }
+    parsePayload(dataFrame, buf);
+    return true;
+}
 
 void append_with_stuffing(uint8_t *buffer, uint8_t byte, int32_t *index) {
     if (byte == SpiHeaderByte || byte == SpiFlagByte || byte == SpiTrailerByte) {

@@ -64,7 +64,7 @@ void setup() {
   // PasswordLoop();
 
   SPISlave.onData([](uint8_t *data, size_t len) {
-    validNewMessage = receiveSpiData(&dataFrame, data);
+    validNewMessage = receiveSpiData(&dataFrame, data, len);
   });
 
   SPISlave.begin();

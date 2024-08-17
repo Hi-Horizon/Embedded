@@ -41,12 +41,16 @@ void sendFrameToEsp(SPI_HandleTypeDef *spi, uint8_t *buf, uint8_t *msg, int32_t 
     buffer_append_uint8(msg, SpiTrailerByte, &frameLength);
 
     //send the message
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+    HAL_Delay(5);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
 
     HAL_SPI_Transmit(spi, transfercode, sizeof(transfercode), 1000);
     HAL_SPI_Transmit(spi, msg, sizeof(msg), 1000);
 
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+    HAL_Delay(5);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 0);
 }
 
 void sendDataToEsp(SPI_HandleTypeDef *spi, DataFrame* data) {
@@ -62,25 +66,25 @@ void sendDataToEsp(SPI_HandleTypeDef *spi, DataFrame* data) {
 	  sendFrameToEsp(spi, buf, msg, index);
 	  index = 0;
 
-	  //Append Id 2
-	  buffer_append_uint8(buf, 2, &index);
-	  //Append payload
-	  buffer_append_float32(buf, data->gps.lat, 100, &index);
-	  buffer_append_float32(buf, data->gps.lng, 100, &index);
-	  buffer_append_float32(buf, data->gps.speed, 100, &index);
-
-	  sendFrameToEsp(spi, buf, msg, index);
-	  index = 0;
-
-	  //Append Id 3
-	  buffer_append_uint8(buf, 3, &index);
-	  //Append payload
-	  buffer_append_float32(buf, data->motor.battery_current, 100, &index);
-	  buffer_append_float32(buf, data->motor.battery_voltage, 100, &index);
-	  buffer_append_uint16(buf, data->mppt.power, &index);
-
-	  sendFrameToEsp(spi, buf, msg, index);
-	  index = 0;
+//	  //Append Id 2
+//	  buffer_append_uint8(buf, 2, &index);
+//	  //Append payload
+//	  buffer_append_float32(buf, data->gps.lat, 100, &index);
+//	  buffer_append_float32(buf, data->gps.lng, 100, &index);
+//	  buffer_append_float32(buf, data->gps.speed, 100, &index);
+//
+//	  sendFrameToEsp(spi, buf, msg, index);
+//	  index = 0;
+//
+//	  //Append Id 3
+//	  buffer_append_uint8(buf, 3, &index);
+//	  //Append payload
+//	  buffer_append_float32(buf, data->motor.battery_current, 100, &index);
+//	  buffer_append_float32(buf, data->motor.battery_voltage, 100, &index);
+//	  buffer_append_uint16(buf, data->mppt.power, &index);
+//
+//	  sendFrameToEsp(spi, buf, msg, index);
+//	  index = 0;
 }
 
 

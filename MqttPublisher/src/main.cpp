@@ -127,9 +127,11 @@ void loop() {
     status.updateConnectionStrength(WiFi.RSSI());
     snprintf (msg, MSG_BUFFER_SIZE, 
       "{"
-      "\"unixTime\":%u,"
+      "\"mtuT\":%u,"
       "\"gpsT\":%u,"
       "\"mpptT\":%u,"
+      "\"lat\":%f,"
+      "\"lng\":%f,"
       "\"v\":%f,"
       "\"Pz\":%i,"
       "\"mc\":%f,"
@@ -139,6 +141,8 @@ void loop() {
     , dataFrame.telemetry.unixTime
     , dataFrame.gps.last_msg
     , dataFrame.mppt.last_msg
+    , dataFrame.gps.lat
+    , dataFrame.gps.lng
     , dataFrame.gps.speed
     , dataFrame.mppt.power
     , dataFrame.motor.battery_current

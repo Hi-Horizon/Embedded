@@ -33,6 +33,7 @@
 
 #include "MTU/ICM20984_driver.h"
 #include "MTU/MPPT_parsing.h"
+#include "MTU/BMS_parsing.h"
 #include "MTU/GPS_parsing.h"
 #include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
@@ -141,11 +142,8 @@ static void MX_RTC_Init(void);
 
 // UART
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
-	if (huart->Instance == USART1) { //MPPT
-		parseMPPTHex(&data, MPPT_buf, MPPT_BUF_SIZE);
-		for (uint16_t i = 0; i < MPPT_BUF_SIZE; i++) {
-			MPPT_buf[i] = 0;
-		}
+	if (huart->Instance == USART1) { //BMS
+		parseBmsMessage(&data, MPPT_buf, MPPT_BUF_SIZE);
 	}
 	if (huart->Instance == UART5) { //GPS
 		if (Size != GPS_buf_index) { // check if new data has been received
@@ -364,8 +362,11 @@ int main(void)
 	GPS_bufferToDataFrame(&data);
 
 	if (HAL_GetTick() - lastMPPTread > 500) {
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
+		requestBmsData(&huart1, 0x15);
+
+
+//		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
 //		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
 
 		// test for the MPPT hex message parsing
@@ -629,7 +630,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 19200;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;

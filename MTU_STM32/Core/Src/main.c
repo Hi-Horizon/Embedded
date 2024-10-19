@@ -87,7 +87,7 @@ uint8_t GPS_work_buf[GPS_BUF_SIZE];
 uint16_t GPS_buf_index = 0;
 uint16_t GPS_RX_msg_size = 0;
 
-#define MPPT_BUF_SIZE 256
+#define MPPT_BUF_SIZE 28
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
 uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
 uint8_t mpptHex[30];
@@ -139,6 +139,20 @@ static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
+
+int isSizeRxed = 0;
+uint16_t size = 0;
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart->Instance == USART1) { //BMS
+		parseBmsMessage(&data, MPPT_buf, 8);
+		parseBmsMessage(&data, MPPT_buf + 8, 8);
+		parseBmsMessage(&data, MPPT_buf + 16, 6);
+		parseBmsMessage(&data, MPPT_buf + 22, 6);
+		data.bms.last_msg = data.telemetry.unixTime;
+	}
+}
 
 // UART
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
@@ -297,11 +311,13 @@ int main(void)
 
 
   //UART
+//  HAL_UART_Receive_DMA(&huart1, MPPT_buf, 9);
 
   //clear the RDR register to avoid overrun error
   volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
+//  volatile uint8_t tempUARTrdr = husart1.Instance->RDR;
   (void)tempUARTrdr;
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//  HAL_USART(&husart1, MPPT_buf, MPPT_BUF_SIZE);
 
   //clear the RDR register to avoid overrun error
   tempUARTrdr = huart5.Instance->RDR;
@@ -352,6 +368,7 @@ int main(void)
 	if (huart5.ErrorCode & 8) {
 		tempUARTrdr = huart5.Instance->RDR;
 		(void)tempUARTrdr;
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 	}
 
 	HAL_Delay(1000);
@@ -362,15 +379,9 @@ int main(void)
 	GPS_bufferToDataFrame(&data);
 
 	if (HAL_GetTick() - lastMPPTread > 500) {
-		requestBmsData(&huart1, 0x15);
+		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+		requestBmsData(&huart1, 0x14, MPPT_buf);
 
-
-//		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		HAL_UART_Transmit(&huart1, getPanelPower, 11, 1000);
-//		HAL_UART_Transmit(&huart1, getPanelVoltage, 11, 1000);
-
-		// test for the MPPT hex message parsing
-//		handleMPPTHex(&data, "7BCED0012345678A5", 17);
 		lastMPPTread = HAL_GetTick();
 	}
 
@@ -835,9 +846,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-  /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
 }
 

@@ -57,16 +57,34 @@ uint16_t CRC16 (const uint8_t* data, uint16_t length)
 	return crcWord;
 }
 
-void requestBmsData(UART_HandleTypeDef *huart, uint8_t id) {
-	uint8_t data[4] = {0xAA, id, 0x0, 0x0};
+//void requestBmsData(USART_HandleTypeDef *husart, uint8_t id, uint8_t *buf) {
+//	uint8_t data[10] = {0xAA, id, 0x0, 0x0};
+//	uint16_t checksum = CRC16(data, 2);
+//	data[2] = 0x00FF & checksum;
+//	data[3] = (0xFF00 & checksum) >> 8;
+//	HAL_USART_TransmitReceive(husart, data, buf, 10, 1000);
+//}
+
+void requestBmsData(UART_HandleTypeDef *husart, uint8_t id, uint8_t *buf) {
+	uint8_t data[16] = {0xAA, id, 0x0, 0x0, 0xAA, 0x15, 0x0, 0x0, 0xAA, 0x16, 0x0, 0x0, 0xAA, 0x17, 0x0, 0x0};
 	uint16_t checksum = CRC16(data, 2);
+	uint16_t checksum2 = CRC16(data + 4, 2);
+	uint16_t checksum3 = CRC16(data + 8, 2);
+	uint16_t checksum4 = CRC16(data + 12, 2);
 	data[2] = 0x00FF & checksum;
 	data[3] = (0xFF00 & checksum) >> 8;
-	HAL_UART_Transmit(huart, data, 4, 1000);
+	data[6] = 0x00FF & checksum2;
+	data[7] = (0xFF00 & checksum2) >> 8;
+	data[10] = 0x00FF & checksum3;
+	data[11] = (0xFF00 & checksum3) >> 8;
+	data[14] = 0x00FF & checksum4;
+	data[15] = (0xFF00 & checksum4) >> 8;
+	HAL_UART_Transmit(husart, data, 16, 100);
 }
 
 void parseBmsMessage(DataFrame* data, const uint8_t* buf, uint16_t size) {
 	float f;
+	uint16_t word;
 	switch(buf[1]) {
 		case 0x14: // voltage
 			memcpy (&f, buf + 2, 4);
@@ -75,6 +93,14 @@ void parseBmsMessage(DataFrame* data, const uint8_t* buf, uint16_t size) {
 		case 0x15: // current
 			memcpy (&f, buf + 2, 4);
 			data->bms.battery_current = f;
+			break;
+		case 0x16: // max cell
+			memcpy (&word, buf + 2, 2);
+			data->bms.max_cel_voltage = word / 1000.0;
+			break;
+		case 0x17: // min cell
+			memcpy (&word, buf + 2, 2);
+			data->bms.min_cel_voltage = word / 1000.0;
 			break;
 	}
 }

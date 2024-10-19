@@ -15,7 +15,8 @@
 #include "stdio.h"
 #include "ctype.h"
 
-void requestBmsData(UART_HandleTypeDef *huart, uint8_t id);
+//void requestBmsData(USART_HandleTypeDef *huart, uint8_t id, uint8_t *buf);
+void requestBmsData(UART_HandleTypeDef *huart, uint8_t id, uint8_t *buf);
 void parseBmsMessage(DataFrame* data, const uint8_t* buf, uint16_t size);
 
 #endif /* INC_MTU_BMS_PARSING_H_ */

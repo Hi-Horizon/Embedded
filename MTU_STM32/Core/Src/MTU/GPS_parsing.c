@@ -5,7 +5,11 @@
  *      Author: senne
  */
 
-#include <MTU/GPS_parsing.h>
+#include <MTU/GPS_API.h>
+
+uint8_t GPS_work_buf[GPS_BUF_SIZE];
+uint16_t GPS_buf_index = 0;
+uint16_t GPS_RX_msg_size = 0;
 
 int8_t counter = -1;
 uint8_t arraypos = 0;
@@ -24,7 +28,7 @@ char raw_date[6]; // ddmmyy
 
 char *GPS_data_raw[9] = {raw_time, raw_status, raw_latitude, raw_NS_indicator, raw_longitude, raw_EW_indicator, raw_speed_knots, raw_course, raw_date};
 
-void parseGPS(uint8_t* buf, uint16_t size) {
+void parseGpsMessage(uint8_t* buf, uint16_t size) {
 	for (uint16_t i = 0; i < size; i++) {
 		uint8_t data = buf[i];
 		if(data == 'R') {
@@ -137,6 +141,43 @@ void parseNMEA(DataFrame* data, uint8_t* buf, int beginIndex, int endMessage) {
 						ind++;
 			}
 			data->gps.speed = atof(val);
+	}
+}
+
+void parseGPS(DataFrame* data, uint8_t* GPS_buf, uint16_t Size) {
+	if (Size != GPS_buf_index) { // check if new data has been received
+		/* Check if position of index in reception buffer has simply be increased
+		   of if end of buffer has been reached */
+
+		if (Size > GPS_buf_index) { /* Current position is higher than previous one */
+
+			GPS_RX_msg_size = Size - GPS_buf_index;
+
+			/* Copy received data in "User" buffer for evacuation */
+			for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
+				GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
+			}
+		}
+		else { /* Current position is lower than previous one : end of buffer has been reached */
+
+		  /* First copy data from current position till end of buffer */
+		  GPS_RX_msg_size = GPS_BUF_SIZE - GPS_buf_index;
+		  /* Copy received data in "User" buffer for evacuation */
+		  for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
+			  GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
+		  }
+		  /* Check and continue with beginning of buffer */
+		  if (Size > 0)
+		  {
+			for (uint16_t i = 0; i < Size; i++) {
+				GPS_work_buf[GPS_RX_msg_size + i] = GPS_buf[i];
+			}
+			GPS_RX_msg_size += Size;
+		  }
+		}
+
+		parseGpsMessage(GPS_work_buf, GPS_RX_msg_size);
+		GPS_buf_index = Size;
 	}
 }
 

@@ -7,7 +7,7 @@
 
 //checksum of TinyBMS, as given by the datasheet
 
-#include <MTU/BMS_parsing.h>
+#include <MTU/BMS_API.h>
 
 const static uint16_t crcTable[256]={
 0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
@@ -57,16 +57,16 @@ uint16_t CRC16 (const uint8_t* data, uint16_t length)
 	return crcWord;
 }
 
-//void requestBmsData(USART_HandleTypeDef *husart, uint8_t id, uint8_t *buf) {
-//	uint8_t data[10] = {0xAA, id, 0x0, 0x0};
-//	uint16_t checksum = CRC16(data, 2);
-//	data[2] = 0x00FF & checksum;
-//	data[3] = (0xFF00 & checksum) >> 8;
-//	HAL_USART_TransmitReceive(husart, data, buf, 10, 1000);
-//}
+void parseBmsFrame(DataFrame* data, const uint8_t* buf) {
+	parseBmsMessage(data, buf, 8);
+	parseBmsMessage(data, buf + 8, 8);
+	parseBmsMessage(data, buf + 16, 6);
+	parseBmsMessage(data, buf + 22, 6);
+	data->bms.last_msg = data->telemetry.unixTime;
+}
 
-void requestBmsData(UART_HandleTypeDef *husart, uint8_t id, uint8_t *buf) {
-	uint8_t data[16] = {0xAA, id, 0x0, 0x0, 0xAA, 0x15, 0x0, 0x0, 0xAA, 0x16, 0x0, 0x0, 0xAA, 0x17, 0x0, 0x0};
+void requestBmsData(UART_HandleTypeDef *husart, uint8_t *buf) {
+	uint8_t data[16] = {0xAA, 0x14, 0x0, 0x0, 0xAA, 0x15, 0x0, 0x0, 0xAA, 0x16, 0x0, 0x0, 0xAA, 0x17, 0x0, 0x0};
 	uint16_t checksum = CRC16(data, 2);
 	uint16_t checksum2 = CRC16(data + 4, 2);
 	uint16_t checksum3 = CRC16(data + 8, 2);

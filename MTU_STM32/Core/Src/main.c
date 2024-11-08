@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <MTU/SD_API.h>
 #include "main.h"
 #include "app_fatfs.h"
 
@@ -28,13 +29,14 @@
 
 #include "fatfs_sd.h"
 #include "string.h"
-#include "MTU/SD_hhrt.h"
 #include "time.h"
 
-#include "MTU/ICM20984_driver.h"
-#include "MTU/MPPT_parsing.h"
-#include "MTU/BMS_parsing.h"
-#include "MTU/GPS_parsing.h"
+#include "MTU/CAN_API.h"
+#include "MTU/BMS_API.h"
+#include "MTU/GPS_API.h"
+#include "MTU/IMU_API.h"
+#include "MTU/MPPT_API.h"
+#include "MTU/util.h"
 #include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
 
@@ -73,19 +75,12 @@ SPI_HandleTypeDef hspi3;
 //DataFrame
 DataFrame data;
 
-//RTC
-RTC_TimeTypeDef timer;
-RTC_DateTypeDef date;
-
 //timing
+uint32_t lastTaskPerform = 0;
 uint32_t lastMPPTread = 0;
 
 //UART
-#define GPS_BUF_SIZE 1024
 uint8_t GPS_buf[GPS_BUF_SIZE];
-uint8_t GPS_work_buf[GPS_BUF_SIZE];
-uint16_t GPS_buf_index = 0;
-uint16_t GPS_RX_msg_size = 0;
 
 #define MPPT_BUF_SIZE 28
 uint8_t MPPT_buf[MPPT_BUF_SIZE];
@@ -94,17 +89,8 @@ uint8_t mpptHex[30];
 uint16_t bufTracker = 0;
 bool frameDone = false;
 
-//MPPThex request messages
-uint8_t getPanelPower[11] = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
-uint8_t getPanelVoltage[11] = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
-
 //CAN
-FDCAN_TxHeaderTypeDef MpptHeader;
-FDCAN_TxHeaderTypeDef GpsHeader;
-FDCAN_TxHeaderTypeDef EspHeader;
-
 FDCAN_RxHeaderTypeDef RxHeader;
-
 uint32_t              TxMailbox;
 
 //IMU
@@ -115,14 +101,10 @@ HAL_StatusTypeDef IMU_status;
 
 //SD
 FATFS fs;
-FIL file;
 FRESULT sdResult;
 char sdBuf[1024];
 
 UINT br, bw;
-
-FATFS *pfs;
-DWORD fre_clust;
 uint32_t total, free_space;
 /* USER CODE END PV */
 
@@ -143,110 +125,31 @@ static void MX_RTC_Init(void);
 int isSizeRxed = 0;
 uint16_t size = 0;
 
+// UART DMA callback handling BMS data
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == USART1) { //BMS
-		parseBmsMessage(&data, MPPT_buf, 8);
-		parseBmsMessage(&data, MPPT_buf + 8, 8);
-		parseBmsMessage(&data, MPPT_buf + 16, 6);
-		parseBmsMessage(&data, MPPT_buf + 22, 6);
-		data.bms.last_msg = data.telemetry.unixTime;
+		parseBmsFrame(&data, MPPT_buf);
 	}
 }
 
-// UART
+// Idle line UART callback, used for MPPT and GPS data
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
-	if (huart->Instance == USART1) { //BMS
+	//BMS
+	if (huart->Instance == USART1) {
 		parseBmsMessage(&data, MPPT_buf, MPPT_BUF_SIZE);
 	}
-	if (huart->Instance == UART5) { //GPS
-		if (Size != GPS_buf_index) { // check if new data has been received
-		    /* Check if position of index in reception buffer has simply be increased
-		       of if end of buffer has been reached */
-
-		    if (Size > GPS_buf_index) { /* Current position is higher than previous one */
-
-		    	GPS_RX_msg_size = Size - GPS_buf_index;
-
-				/* Copy received data in "User" buffer for evacuation */
-				for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
-					GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
-				}
-		    }
-		    else { /* Current position is lower than previous one : end of buffer has been reached */
-
-		      /* First copy data from current position till end of buffer */
-		      GPS_RX_msg_size = GPS_BUF_SIZE - GPS_buf_index;
-		      /* Copy received data in "User" buffer for evacuation */
-		      for (uint16_t i = 0; i < GPS_RX_msg_size; i++) {
-		    	  GPS_work_buf[i] = GPS_buf[GPS_buf_index + i];
-		      }
-		      /* Check and continue with beginning of buffer */
-		      if (Size > 0)
-		      {
-		        for (uint16_t i = 0; i < Size; i++) {
-		        	GPS_work_buf[GPS_RX_msg_size + i] = GPS_buf[i];
-		        }
-		        GPS_RX_msg_size += Size;
-		      }
-		    }
-
-		    parseGPS(GPS_work_buf, GPS_RX_msg_size);
-			GPS_buf_index = Size;
-		}
+	//GPS
+	else if (huart->Instance == UART5) {
+		parseGPS(&data, GPS_buf, Size);
 	}
 }
-HAL_StatusTypeDef r = HAL_OK;
-uint32_t code = 0;
 
 // processes CANBUS messages
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
-}
-
-void sendToCan() {
-	uint8_t TxData[8];
-	int32_t ind = 0;
-	buffer_append_float16(TxData, data.gps.distance, 100, &ind);
-	buffer_append_float16(TxData,   data.gps.speed, 100, &ind);
-	buffer_append_uint8(TxData,   data.gps.fix, &ind);
-	buffer_append_uint8(TxData,   data.gps.antenna, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &GpsHeader, TxData);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data.mppt.voltage, 100, &ind);
-	buffer_append_uint16(TxData,  data.mppt.power, &ind);
-	buffer_append_float16(TxData,  data.mppt.current, 100, &ind);
-	buffer_append_uint8(TxData,    data.mppt.error, &ind);
-	buffer_append_uint8(TxData,    data.mppt.cs, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &MpptHeader, TxData);
-
-	ind = 0;
-	buffer_append_uint8(TxData, data.telemetry.espStatus, &ind);
-	buffer_append_uint8(TxData, data.telemetry.internetConnection, &ind);
-
-	r = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &EspHeader, TxData);
-	code = hfdcan1.ErrorCode;
-}
-
-//converts rtc timestamp to unixTime
-void getRTCUnixTime() {
-	HAL_RTC_GetTime(&hrtc, &timer, RTC_FORMAT_BIN);
-	HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
-	struct tm tm = {};
-	tm.tm_sec = timer.Seconds;
-	tm.tm_min = timer.Minutes;
-	tm.tm_hour = timer.Hours;
-	//these below are not important but are needed for correct conversion
-	tm.tm_isdst = timer.DayLightSaving;
-	tm.tm_mday = 1;
-	tm.tm_mon = 0;
-	tm.tm_year = 70;
-	data.telemetry.unixTime = mktime(&tm); //convert a segmented timestamp to a unixTimeStamp
 }
 
 /* USER CODE END PFP */
@@ -263,7 +166,6 @@ void getRTCUnixTime() {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-																															//!!!!!!!!
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -298,26 +200,13 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
-  // Mount SD card
-  sdResult = f_mount(&fs,"/",1);
+  //SD INIT
+  sdResult = initSD(&fs, &total, &free_space);
 
-  sdResult = f_getfree("/", &fre_clust, &pfs);
-
-	total = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
-	free_space = (uint32_t)(fre_clust * pfs->csize * 0.5);
-
-	frameDone = true;
-  writeDataHeaderToSD(&data, &file);
-
-
-  //UART
-//  HAL_UART_Receive_DMA(&huart1, MPPT_buf, 9);
-
+  //UART INIT
   //clear the RDR register to avoid overrun error
   volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
-//  volatile uint8_t tempUARTrdr = husart1.Instance->RDR;
   (void)tempUARTrdr;
-//  HAL_USART(&husart1, MPPT_buf, MPPT_BUF_SIZE);
 
   //clear the RDR register to avoid overrun error
   tempUARTrdr = huart5.Instance->RDR;
@@ -325,44 +214,38 @@ int main(void)
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
   //CAN INIT
+  setCanTxHeaders();
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
-
-  MpptHeader.Identifier 	= 0x711;
-  MpptHeader.IdType 		= FDCAN_STANDARD_ID;
-  MpptHeader.TxFrameType 	= FDCAN_DATA_FRAME;
-  MpptHeader.DataLength 	= FDCAN_DLC_BYTES_8;
-  MpptHeader.FDFormat		= FDCAN_CLASSIC_CAN;
-
-  GpsHeader.Identifier 		= 0x701;
-  GpsHeader.IdType 			= FDCAN_STANDARD_ID;
-  GpsHeader.TxFrameType 	= FDCAN_DATA_FRAME;
-  GpsHeader.DataLength 		= FDCAN_DLC_BYTES_6;
-  GpsHeader.FDFormat		= FDCAN_CLASSIC_CAN;
-
-  EspHeader.Identifier 		= 0x751;
-  EspHeader.IdType 			= FDCAN_STANDARD_ID;
-  EspHeader.TxFrameType 	= FDCAN_DATA_FRAME;
-  EspHeader.DataLength 		= FDCAN_DLC_BYTES_2;
-  EspHeader.FDFormat		= FDCAN_CLASSIC_CAN;
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)																													//!!!!!!!!!!
+
+/////////////////////
+//****MAIN LOOP****//
+/////////////////////
+while (1)
   {
-	getRTCUnixTime();
+	getRTCUnixTime(&hrtc, &data);
 
-//	IMU_txbuf[0] = REG_BANK_SEL;
-//	IMU_txbuf[1] = USER_BANK_;
-//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
+	//general tasks
+	if (HAL_GetTick() - lastTaskPerform > 1000) {
+		writeDataFrameToSD(&data);
+		sendDataToEsp(&hspi2, &data);
+		sendToCan(&hfdcan1, &data);
+		GPS_bufferToDataFrame(&data);
 
-//	IMU_status = HAL_I2C_Master_Transmit(&hi2c1, IMU_address, IMU_txbuf, 2, 1000);
-//	IMU_status = HAL_I2C_Master_Receive(&hi2c1, IMU_address, IMU_txbuf, 8, 1000);
-//	HAL_Delay(500);
-	//only use this to trouble shoot sending data
-//	fillRandomData(&data);
+		lastTaskPerform = HAL_GetTick();
+	}
+
+	//bms data requesting
+	if (HAL_GetTick() - lastMPPTread > 500) {
+		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+		requestBmsData(&huart1, MPPT_buf);
+		lastMPPTread = HAL_GetTick();
+	}
 
 	//if gps has overrun error, clear rdr buffer
 	if (huart5.ErrorCode & 8) {
@@ -370,28 +253,26 @@ int main(void)
 		(void)tempUARTrdr;
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 	}
-
-	HAL_Delay(1000);
-	writeDataFrameToSD(&data, &file);
-	sendDataToEsp(&hspi2, &data);
-	sendToCan();
-
-	GPS_bufferToDataFrame(&data);
-
-	if (HAL_GetTick() - lastMPPTread > 500) {
-		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-		requestBmsData(&huart1, 0x14, MPPT_buf);
-
-		lastMPPTread = HAL_GetTick();
+	if (huart1.ErrorCode & 8) {
+		tempUARTrdr = huart1.Instance->RDR;
+		(void)tempUARTrdr;
 	}
-
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	// TROUBLESHOOT CODE
+
+	// Uncomment this for dummy data generation
+	// fillRandomData(&data);
   }
+	////////////////////
+	//****END MAIN****//
+	////////////////////
   /* USER CODE END 3 */
 }
+
+
 
 /**
   * @brief System Clock Configuration

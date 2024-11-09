@@ -12,16 +12,17 @@
 #include <WiFiUdp.h>
 
 #include "wifiConfig.h"
+#include "WIFI_setup/WIFI_setup.h"
 #include <espStatus/espStatus.h>
 
 #include <DataFrame.h>
 #include <SPISlave.h>
 #include <buffer.h>
 #include <SpiControl.h>
+#include <ESP8266WebServer.h>
+#include <DNSServer.h>
 
 DataFrame dataFrame;
-
-WiFiServer initServer(80);
 
 // Update these with values suitable for your network.
 
@@ -43,34 +44,40 @@ bool timeSyncDone = false;
 uint8_t staleness = 0;
 bool validNewMessage = false;
 uint8_t oldstaleness = 0;
-String user = "";
-String pwrd = "";
+
+// String wifi_ssid = "";
+// String wifi_password = "";
+// bool wifiCredentialsReceived = false;
 
 #define MSG_BUFFER_SIZE (3000)
 char msg[MSG_BUFFER_SIZE];
 
-void setup_wifi();
+// void connect_wifi();
 uint32_t setDateTime();
 void reconnect();
 void onMQTTReceive(char* topic, byte* payload, unsigned int length);
-void PasswordLoop();
+// void ask_wifi_credentials();
 
 void setup() {
+  //SERIAL INIT
   delay(500);
   Serial.begin(9600);
   delay(500);
   Serial.println();
 
-  // PasswordLoop();
-
+  //SPI INIT
   SPISlave.onData([](uint8_t *data, size_t len) {
     validNewMessage = receiveSpiData(&dataFrame, data, len);
   });
 
   SPISlave.begin();
 
+  //CERT FILE LOADER INIT
   LittleFS.begin();
-  setup_wifi();
+  
+  //SEARCHING WIFI
+  search_wifi(&status);
+
   timeClient.begin();
   timeClient.update();
   dataFrame.telemetry.NTPtime = timeClient.getEpochTime();
@@ -81,6 +88,7 @@ void setup() {
 
   setDateTime();
 
+  //CHECK CERTS
   status.updateStatus(TESTING_CERTS);
   int numCerts = certStore.initCertStore(LittleFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
   Serial.printf("Number of CA certs read: %d\n", numCerts);
@@ -89,26 +97,32 @@ void setup() {
     return; // Can't connect to anything w/o certs!
   }
 
+  //USE CERTS
   BearSSL::WiFiClientSecure *bear = new BearSSL::WiFiClientSecure();
   // Integrate the cert store with this connection
   bear->setCertStore(&certStore);
 
+  //CONNECT MQTT
   client = new PubSubClient(*bear);
 
-  client->setServer(mqtt_server, 8883);
+  const char* mqtt_server_prim = mqtt_server;
+  client->setServer(mqtt_server_prim, 8883);
   client->setCallback(onMQTTReceive);
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {              //first check if internet is still connected
+  //first check if internet is still connected
+  if (WiFi.status() != WL_CONNECTED) {              
     status.updateStatus(WiFi.status());
   }
+  //then check if esp is still connected with Broker
   else if (!client->connected()) { 
-    status.updateStatus(BROKER_CONNECTION_FAILED);  //then check if esp is still connected with Broker
+    status.updateStatus(BROKER_CONNECTION_FAILED);  
     reconnect();
   }
   client->loop();
 
+  //TODO: should be in a function 
   if (millis() - stalenessTimer > 3000L) {
     if (oldstaleness == staleness) {
       status.updateStatus(HARDWARE_FAULT);
@@ -124,6 +138,7 @@ void loop() {
   }
   
   if (millis() - lastMsg > 1000L && validNewMessage) {
+    digitalWrite(LED_BUILTIN, LOW);
     status.updateConnectionStrength(WiFi.RSSI());
     snprintf (msg, MSG_BUFFER_SIZE, 
       "{"
@@ -149,38 +164,16 @@ void loop() {
     , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
     , dataFrame.motor.battery_voltage);
 
-    Serial.println(client->publish("data", msg));
+    digitalWrite(LED_BUILTIN, HIGH);
+    client->publish("data", msg);
     lastMsg = millis();
     validNewMessage = false;
-
+    
     //for troubleshooting purposes
     // Serial.println("");
     // Serial.print(msg);
     // Serial.println("");
   }
-}
-
-void setup_wifi() {
-  // setting up esp as a wifistation, starting smartconfig
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
-  status.updateStatus(WIFI_SEARCH);
-  
-  status.updateStatus(WIFI_LOGIN_TRY);
-  Serial.println("found! waiting for WiFiConnection");
-  while (WiFi.status() != WL_CONNECTED) {
-    status.updateStatus(WiFi.status());
-    delay(500);
-    Serial.print(".");
-  }
-  status.updateStatus(WiFi.status());
-  status.updateConnectionStrength(WiFi.RSSI());
-  randomSeed(micros());
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
 }
 
 uint32_t setDateTime() {
@@ -200,7 +193,6 @@ uint32_t setDateTime() {
   gmtime_r(&now, &timeinfo);
   return now;
 }
-
 
 void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -222,7 +214,6 @@ void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
     digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
   }
 }
-
 
 void reconnect() {
   // Loop until we’re reconnected
@@ -252,54 +243,4 @@ void reconnect() {
   }
 
   status.updateStatus(CONNECTED);
-}
-
-void PasswordLoop() {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("Hi-Horizon Telemetry", "stupidPwrd");
-  initServer.begin();
-  bool infoReceived = false;
-  WiFiClient client = initServer.available();
-  String currentLine = "";
-  String header = "";
-
-  while (!infoReceived) {
-    client = initServer.available();
-    if(!client) {
-      continue;
-    }
-    while(client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        header += c;
-        // Serial.print(c);
-        if(c != '\n' && c != '\r') {
-          currentLine += c;
-        }
-        else if (c == '\n' && currentLine.length() == 0) {
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-type:text/html");
-          client.println("Connection: close");
-          client.println();
-          client.println("<html><body><h1>passwordTest</h1></body></html>");
-          client.println();
-          break;
-        }
-        else currentLine = "";
-      }
-    }
-    Serial.println(header);
-    int paramIndicator = header.indexOf('?');
-    int paramSeperator = header.indexOf('&');
-    if (header.indexOf("GET /") == 0 && paramIndicator != -1 && paramSeperator != -1) {
-      user = header.substring(header.indexOf('=',paramIndicator + 1) + 1, paramSeperator);
-      pwrd = header.substring(header.indexOf('=',paramSeperator + 1) + 1, header.indexOf(" ", paramSeperator));
-      Serial.println("user:" + user);
-      Serial.println("password:" + pwrd);
-      infoReceived = true;
-      client.stop();
-      initServer.stop();
-    }
-    // header = "";
-  }
 }

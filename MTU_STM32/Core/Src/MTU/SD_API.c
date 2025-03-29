@@ -29,13 +29,22 @@ FRESULT writeDataHeaderToSD() {
 	const char* header =
 		"\n"
 		"time,"
-		"gps_fix,"
-		"latitude,"
-		"longitude,"
-		"speed,"
-		"pZon,"
-		"batteryVoltage,"
-		"batteryCurrent,\n";
+		"GPS_fix,"
+		"GPS_latitude,"
+		"GPS_longitude,"
+		"GPS_speed,"
+		"MPPT_Pzon,"
+		"ESC_warning,"
+		"ESC_failures,"
+		"ESC_batteryVoltage,"
+		"ESC_InputCurrent,"
+		"BMS_batteryVoltage,"
+		"BMS_batteryCurrent,"
+		"min_cell_voltage,"
+		"max_cell_voltage,"
+		"ESP_status,"
+		"ESP_signal_strength,"
+		"\n";
 	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, header, strlen(header), NULL);
 	f_close(&file);
@@ -44,16 +53,24 @@ FRESULT writeDataHeaderToSD() {
 }
 
 FRESULT writeDataFrameToSD(DataFrame* data) {
-	char row[128];
-	int size = sprintf(row, "%lu,%u,%.4f,%.4f,%.3f,%hu,%.3f,%.3f,\n",
+	char row[256];
+	int size = sprintf(row, "%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,\n",
 		data->telemetry.unixTime,
 		data->gps.fix,
 		data->gps.lat,
 		data->gps.lng,
 		data->gps.speed,
 		data->mppt.power,
+		data->motor.warning,
+		data->motor.failures,
 		data->motor.battery_voltage,
-		data->motor.battery_current
+		data->motor.battery_current,
+		data->bms.battery_voltage,
+		data->bms.battery_current,
+		data->bms.min_cel_voltage,
+		data->bms.max_cel_voltage,
+		data->telemetry.espStatus,
+		data->telemetry.internetConnection
 	);
 	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, &row, size, NULL);

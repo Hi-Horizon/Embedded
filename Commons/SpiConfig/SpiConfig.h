@@ -17,6 +17,7 @@ extern "C" {
 
 void dataFrameInBuf(DataFrame *dataFrame, uint8_t *buf);
 void dataFrameFromBuf(DataFrame *dataFrame, uint8_t *buf);
+void constructESPInfo(DataFrame *dataFrame, uint8_t *buf);
 void parseESPInfo(DataFrame *dataFrame, uint8_t *buf);
 
 #ifdef __cplusplus

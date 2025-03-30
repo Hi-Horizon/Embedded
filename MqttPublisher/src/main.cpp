@@ -16,15 +16,12 @@
 #include <espStatus/espStatus.h>
 
 #include <DataFrame.h>
-#include <SPISlave.h>
 #include <buffer.h>
 #include <SpiControl.h>
 #include <SpiConfig.h>
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
 #include <SPI.h>
-
-DataFrame fragileData;
 DataFrame dataFrame;
 
 // Update these with values suitable for your network.
@@ -48,6 +45,10 @@ uint8_t staleness = 0;
 bool validNewMessage = true;
 uint8_t oldstaleness = 0;
 
+#define SPI_BUFFER_SIZE
+uint8_t spi_tx_buf[SPI_BUFFER_SIZE] = {};
+uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
+
 #define MSG_BUFFER_SIZE (3000)
 char msg[MSG_BUFFER_SIZE];
 
@@ -64,12 +65,6 @@ void setup() {
   delay(500);
   Serial.println();
 
-  //SPI INIT
-  // SPISlave.onData([](uint8_t *data, size_t len) {
-  //   validNewMessage = receiveSpiData(&fragileData, data, len);
-  // });
-
-  // SPISlave.begin();
   SPI.begin();
 
   //CERT FILE LOADER INIT
@@ -137,10 +132,27 @@ void loop() {
     Serial.println(status.getStatus());
   }
   
-  if (millis() - lastMsg > 1000L && validNewMessage) {
-    dataFrame = fragileData;
-    digitalWrite(LED_BUILTIN, LOW);
+  if (millis() - lastMsg > 1000L) {
     status.updateConnectionStrength(WiFi.RSSI());
+    dataFrame.telemetry.espStatus = status.getStatus();
+    dataFrame.telemetry.internetConnection = status.getConnectionStrength();
+    //sendAndReceivebuffer
+    //TODO: put in method in SpiControl
+    constructESPInfo(&dataFrame, spi_tx_buf);
+    for(int i=0; i < sizeof(spi_tx_buf); i++) {
+	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+      Serial.print(spi_rx_buf[i]);
+      Serial.print(',');
+    }
+    Serial.println();
+
+    dataFrameFromBuf(&dataFrame, spi_rx_buf);
+    dataFrameFromBuf(&dataFrame, spi_rx_buf+19);
+    dataFrameFromBuf(&dataFrame, spi_rx_buf+31);
+    dataFrameFromBuf(&dataFrame, spi_rx_buf+47);
+    dataFrameFromBuf(&dataFrame, spi_rx_buf+61);
+
+    digitalWrite(LED_BUILTIN, LOW);
     snprintf (msg, MSG_BUFFER_SIZE, 
       "{"
       "\"mtuT\":%u,"
@@ -187,11 +199,10 @@ void loop() {
     digitalWrite(LED_BUILTIN, HIGH);
     bool success = client->publish("data", msg);
     lastMsg = millis();
-    // validNewMessage = false;
     
     //for troubleshooting purposes
-    // Serial.println("");
-    Serial.print(success);
+    Serial.print("message sent: ");
+    Serial.println(success);
     // Serial.println("");
   }
 }

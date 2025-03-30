@@ -96,6 +96,12 @@ void dataFrameFromBuf(DataFrame *dataFrame, uint8_t *buf) {
     }
 }
 
+void constructESPInfo(DataFrame *dataFrame, uint8_t *buf) {
+    int32_t index = 0;
+    buffer_append_uint8(buf, dataFrame->telemetry.espStatus, &index);
+    buffer_append_uint8(buf, dataFrame->telemetry.internetConnection, &index);
+}
+
 void parseESPInfo(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 0;
     dataFrame->telemetry.espStatus = buffer_get_uint8(buf, &index);

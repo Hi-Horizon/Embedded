@@ -9,13 +9,15 @@ typedef struct
         float battery_voltage;
         float battery_current;
         float SOC;
-
+        
+        //kan weg??
         bool *balancing;
         struct STATUS {
             bool OS;      // BMS online status
             bool LSS;     // Load switch status (0 - OFF, 1 - ON)
             bool CSS;     // Charger switch status (0 - OFF, 1 - ON)
         } status;
+        //tot hier
         float min_cel_voltage;
         float max_cel_voltage;
 
@@ -42,8 +44,10 @@ typedef struct
         uint8_t warning;
         uint8_t failures;
 
+        //kan weg??
         float capacity;
         float term_voltage;
+        //tot hier
         uint32_t last_msg;
 } Motorcontroller_data;
 
@@ -58,6 +62,7 @@ typedef struct
         uint32_t last_msg;
 } MPPT_data;
 
+//kan helemaal weg?
 typedef struct
 {
         uint8_t temp;
@@ -68,7 +73,9 @@ typedef struct
 typedef struct
 {
         uint32_t unixTime;
+        //kan weg
         uint32_t localRuntime;
+        //kan weg
         uint8_t MTUtemp;
 
         uint8_t SD_error;
@@ -76,9 +83,9 @@ typedef struct
         uint8_t espStatus;
         uint8_t internetConnection;
         uint32_t NTPtime;
-
         float Pmotor;
-        uint32_t strategyRuntime;
+        //kan weg
+        uint32_t strategyRuntime; 
         uint32_t last_msg;
 } Telemetry_data;
 

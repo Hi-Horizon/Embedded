@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "SpiConfig.h"
+#include "SpiConfig/SpiConfig.h"
 #include "MTU/ESP_SPI.h"
 #include "CANparser.h"
 
@@ -233,7 +233,7 @@ while (1)
 	//general tasks
 	if (HAL_GetTick() - lastTaskPerform > 1000) {
 		writeDataFrameToSD(&data);
-		sendDataToEsp(&hspi2, &data);
+		sendDataToEsp2(&hspi2, &data);
 		sendToCan(&hfdcan1, &data);
 		GPS_bufferToDataFrame(&data);
 
@@ -264,7 +264,7 @@ while (1)
 	// TROUBLESHOOT CODE
 
 	// Uncomment this for dummy data generation
-	// fillRandomData(&data);
+	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

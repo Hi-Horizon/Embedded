@@ -19,9 +19,12 @@
 #include <SPISlave.h>
 #include <buffer.h>
 #include <SpiControl.h>
+#include <SpiConfig.h>
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
+#include <SPI.h>
 
+DataFrame fragileData;
 DataFrame dataFrame;
 
 // Update these with values suitable for your network.
@@ -42,12 +45,8 @@ unsigned long stalenessTimer = 0; //staleness check timer
 uint32_t timeSinceNTP = 0;
 bool timeSyncDone = false;
 uint8_t staleness = 0;
-bool validNewMessage = false;
+bool validNewMessage = true;
 uint8_t oldstaleness = 0;
-
-// String wifi_ssid = "";
-// String wifi_password = "";
-// bool wifiCredentialsReceived = false;
 
 #define MSG_BUFFER_SIZE (3000)
 char msg[MSG_BUFFER_SIZE];
@@ -66,11 +65,12 @@ void setup() {
   Serial.println();
 
   //SPI INIT
-  SPISlave.onData([](uint8_t *data, size_t len) {
-    validNewMessage = receiveSpiData(&dataFrame, data, len);
-  });
+  // SPISlave.onData([](uint8_t *data, size_t len) {
+  //   validNewMessage = receiveSpiData(&fragileData, data, len);
+  // });
 
-  SPISlave.begin();
+  // SPISlave.begin();
+  SPI.begin();
 
   //CERT FILE LOADER INIT
   LittleFS.begin();
@@ -138,40 +138,60 @@ void loop() {
   }
   
   if (millis() - lastMsg > 1000L && validNewMessage) {
+    dataFrame = fragileData;
     digitalWrite(LED_BUILTIN, LOW);
     status.updateConnectionStrength(WiFi.RSSI());
     snprintf (msg, MSG_BUFFER_SIZE, 
       "{"
       "\"mtuT\":%u,"
-      "\"gpsT\":%u,"
-      "\"mpptT\":%u,"
+      "\"fix\":%u,"
       "\"lat\":%f,"
       "\"lng\":%f,"
       "\"v\":%f,"
+      "\"gpsT\":%u,"
       "\"Pz\":%i,"
+      "\"mpptT\":%u,"
+      "\"escW\":%u,"
+      "\"escF\":%u,"
+      "\"vm\":%f"
       "\"mc\":%f,"
       "\"Pu\":%f,"
-      "\"vm\":%f"
+      "\"escT\":%u,"
+      "\"bv\":%f,"
+      "\"bc\":%f,"
+      "\"bMinv\":%f,"
+      "\"bMaxv\":%f,"
+      "\"bmsT\":%u,"
       "}"
     , dataFrame.telemetry.unixTime
-    , dataFrame.gps.last_msg
-    , dataFrame.mppt.last_msg
+    , dataFrame.gps.fix
     , dataFrame.gps.lat
     , dataFrame.gps.lng
     , dataFrame.gps.speed
+    , dataFrame.gps.last_msg
     , dataFrame.mppt.power
+    , dataFrame.mppt.last_msg
+    , dataFrame.motor.warning
+    , dataFrame.motor.failures
+    , dataFrame.motor.battery_voltage
     , dataFrame.motor.battery_current
     , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
-    , dataFrame.motor.battery_voltage);
+    , dataFrame.motor.last_msg
+    , dataFrame.bms.battery_voltage
+    , dataFrame.bms.battery_current
+    , dataFrame.bms.min_cel_voltage
+    , dataFrame.bms.max_cel_voltage
+    , dataFrame.bms.last_msg
+  );
 
     digitalWrite(LED_BUILTIN, HIGH);
-    client->publish("data", msg);
+    bool success = client->publish("data", msg);
     lastMsg = millis();
-    validNewMessage = false;
+    // validNewMessage = false;
     
     //for troubleshooting purposes
     // Serial.println("");
-    // Serial.print(msg);
+    Serial.print(success);
     // Serial.println("");
   }
 }

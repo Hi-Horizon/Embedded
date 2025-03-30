@@ -45,7 +45,7 @@ uint8_t staleness = 0;
 bool validNewMessage = true;
 uint8_t oldstaleness = 0;
 
-#define SPI_BUFFER_SIZE
+#define SPI_BUFFER_SIZE 128
 uint8_t spi_tx_buf[SPI_BUFFER_SIZE] = {};
 uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
 
@@ -99,6 +99,7 @@ void setup() {
 
   //CONNECT MQTT
   client = new PubSubClient(*bear);
+  client->setBufferSize(3000);
 
   const char* mqtt_server_prim = mqtt_server;
   client->setServer(mqtt_server_prim, 8883);
@@ -139,13 +140,12 @@ void loop() {
     //sendAndReceivebuffer
     //TODO: put in method in SpiControl
     constructESPInfo(&dataFrame, spi_tx_buf);
-    for(int i=0; i < sizeof(spi_tx_buf); i++) {
-	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
-      Serial.print(spi_rx_buf[i]);
-      Serial.print(',');
+    SPI.beginTransaction(SPISettings(14000000, MSBFIRST, SPI_MODE0));
+    for(unsigned int i=0; i < sizeof(spi_tx_buf); i++) {
+	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);;
     }
-    Serial.println();
-
+    SPI.endTransaction();
+    
     dataFrameFromBuf(&dataFrame, spi_rx_buf);
     dataFrameFromBuf(&dataFrame, spi_rx_buf+19);
     dataFrameFromBuf(&dataFrame, spi_rx_buf+31);
@@ -203,6 +203,7 @@ void loop() {
     //for troubleshooting purposes
     Serial.print("message sent: ");
     Serial.println(success);
+    Serial.println(client->state());
     // Serial.println("");
   }
 }

@@ -24,7 +24,57 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 	int32_t ind = 0;
 	switch (id)
 	{
-		//bms
+		//bms cell voltage
+		case 0x200:
+		{
+			ind = 0;
+			for (int i = 0; i < 4; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_float16(payload, 0.0001, &ind);
+			}
+			break;
+		}
+		case 0x201:
+		{
+			ind = 0;
+			for (int i = 4; i < 8; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_float16(payload, 0.0001, &ind);
+			}
+			break;
+		}
+		case 0x202:
+		{
+			ind = 0;
+			for (int i = 8; i < 12; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_float16(payload, 0.0001, &ind);
+			}
+			break;
+		}
+		case 0x203:
+		{
+			ind = 0;
+			dataset->bms.cell_voltage[12] = buffer_get_float16(payload, 0.0001, &ind);
+			dataset->bms.cell_voltage[13] = buffer_get_float16(payload, 0.0001, &ind);
+
+			dataset->bms.battery_voltage = buffer_get_float16(payload, 0.001,  &ind);
+			break;
+		}
+		//bms current
+		case 0x204:
+		{
+			ind = 0;
+			dataset->bms.battery_current = buffer_get_float16(payload, 0.01,  &ind);
+			break;
+		}
+		//bms cell temp
+		case 0x2A0:
+		{
+			ind = 0;
+			for (int i = 0; i < 4; i++) {
+				dataset->bms.cell_temp[i] = buffer_get_float16(payload, 0.01, &ind);
+			}
+			break;
+		}
+		//bms (old)
 		case 0x601:
 			{
 				ind = 0;

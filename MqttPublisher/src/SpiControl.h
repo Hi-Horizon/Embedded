@@ -82,7 +82,7 @@ bool receiveSpiData(DataFrame *dataFrame, uint8_t *data, size_t len) {
     }
     
     // parsePayload(dataFrame, buf);
-    dataFrameFromBuf(dataFrame, buf);
+    // dataFrameFromBuf(dataFrame, buf);
     return true;
 }
 

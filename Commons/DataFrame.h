@@ -18,6 +18,9 @@ typedef struct
             bool CSS;     // Charger switch status (0 - OFF, 1 - ON)
         } status;
         //tot hier
+        float cell_voltage[14];
+        float cell_temp[4];
+
         float min_cel_voltage;
         float max_cel_voltage;
 
@@ -73,19 +76,20 @@ typedef struct
 typedef struct
 {
         uint32_t unixTime;
+        uint32_t NTPtime;
         //kan weg
         uint32_t localRuntime;
-        //kan weg
-        uint8_t MTUtemp;
-
+        
         uint8_t SD_error;
-
+        
         uint8_t espStatus;
+        uint8_t mqttStatus;
         uint8_t internetConnection;
-        uint32_t NTPtime;
         float Pmotor;
         //kan weg
-        uint32_t strategyRuntime; 
+        uint32_t strategyRuntime;
+
+        uint8_t MTUtemp;
         uint32_t last_msg;
 } Telemetry_data;
 

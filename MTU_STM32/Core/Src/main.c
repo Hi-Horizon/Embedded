@@ -162,7 +162,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi)
 {
     HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-    parseESPInfo(&data, esp_rx_buf);
 }
 
 /* USER CODE END PFP */
@@ -250,7 +249,7 @@ while (1)
 		writeDataFrameToSD(&data);
 //		sendDataToEsp2(&hspi2, &data);
 		//TODO: send packet with escape
-		dataFrameInBuf(&data, &esp_tx_buf);
+		createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
 		sendToCan(&hfdcan1, &data);
 		GPS_bufferToDataFrame(&data);
 
@@ -274,6 +273,10 @@ while (1)
 		tempUARTrdr = huart1.Instance->RDR;
 		(void)tempUARTrdr;
 	}
+
+    if (HAL_GetTick() > 5000 && (!parseESPInfo(&data, esp_rx_buf) || data.telemetry.espStatus == 13)) {
+    	HAL_NVIC_SystemReset(); // reset microcontroller if spi communication doesnt work
+    }
 
     /* USER CODE END WHILE */
 
@@ -670,7 +673,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.NSS = SPI_NSS_HARD_INPUT;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -773,7 +776,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|spi3_cs_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(spi3_cs_GPIO_Port, spi3_cs_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA5 */
   GPIO_InitStruct.Pin = GPIO_PIN_5;
@@ -781,13 +784,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PC11 */
   GPIO_InitStruct.Pin = GPIO_PIN_11;

@@ -15,10 +15,11 @@ extern "C" {
 #define RESPONSE_SIZE 14
 #define MSG_MAX_SIZE = 32
 
-void dataFrameInBuf(DataFrame *dataFrame, uint8_t *buf);
-void dataFrameFromBuf(DataFrame *dataFrame, uint8_t *buf);
+void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
+bool parseFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
+
 void constructESPInfo(DataFrame *dataFrame, uint8_t *buf);
-void parseESPInfo(DataFrame *dataFrame, uint8_t *buf);
+bool parseESPInfo(DataFrame *dataFrame, uint8_t *buf);
 
 #ifdef __cplusplus
 }

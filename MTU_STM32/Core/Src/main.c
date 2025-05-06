@@ -99,6 +99,8 @@ uint32_t              TxMailbox;
 uint8_t esp_tx_buf[ESP_BUF_SIZE];
 uint8_t esp_rx_buf[ESP_BUF_SIZE];
 
+WifiCredentials wifiCredentials;
+
 //IMU
 uint8_t IMU_txbuf[8];
 uint8_t IMU_rxbuf[8];
@@ -274,7 +276,7 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
-    if (HAL_GetTick() > 5000 && (!parseESPInfo(&data, esp_rx_buf) || data.telemetry.espStatus == 13)) {
+    if (HAL_GetTick() > 5000 && (!parseFrame(&data, &wifiCredentials, esp_rx_buf, ESP_BUF_SIZE) || data.telemetry.espStatus == 13)) {
     	HAL_NVIC_SystemReset(); // reset microcontroller if spi communication doesnt work
     }
 
@@ -284,7 +286,7 @@ while (1)
 	// TROUBLESHOOT CODE
 
 	// Uncomment this for dummy data generation
-	 fillRandomData(&data);
+//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

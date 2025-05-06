@@ -29,6 +29,7 @@ DataFrame dataFrame;
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
 // are present.
+WifiCredentials wificredentials;
 BearSSL::CertStore certStore;
 WiFiClientSecure espClient;
 PubSubClient * client;
@@ -140,14 +141,14 @@ void loop() {
     dataFrame.telemetry.mqttStatus = client->state();
     //sendAndReceivebuffer
     //TODO: put in method in SpiControl
-    constructESPInfo(&dataFrame, spi_tx_buf);
+    createESPInfoFrame(&dataFrame, spi_tx_buf);
     dataFrame.telemetry.espStatus = CONNECTED;
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
     for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
 	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
     }
 
-    int32_t msglength = 0;
+    // int32_t msglength = 0;
     // for(unsigned int i=0; i < sizeof(spi_rx_buf); i++) {
 	  //   Serial.print(spi_rx_buf[i]);
     //   Serial.print(',');
@@ -155,7 +156,7 @@ void loop() {
     // }
     // Serial.println(msglength);
     
-    if (parseFrame(&dataFrame, spi_rx_buf, sizeof(spi_tx_buf))) {
+    if (parseFrame(&dataFrame, &wificredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
       digitalWrite(LED_BUILTIN, LOW);
       snprintf (msg, MSG_BUFFER_SIZE, 
         "{"

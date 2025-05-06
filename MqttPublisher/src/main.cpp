@@ -65,6 +65,8 @@ void setup() {
   delay(500);
   Serial.println();
 
+  configure_WiFi(&status);
+
   SPI.begin();
 
   //CERT FILE LOADER INIT

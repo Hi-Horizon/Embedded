@@ -15,57 +15,10 @@ uint8_t calculateChecksum(uint8_t *msg, int32_t messageSize) {
 	return checksum;
 }
 
-//Puts all values from the dataFrame into a buffer, creates the frame structure
-void dataFrameInPayload(DataFrame *dataFrame, uint8_t *buf) {
-    int32_t index = 0;
-    int32_t beginMsg = 0;
-
-    buffer_append_uint8(buf, 1, &index);
-    buffer_append_uint32(buf, dataFrame->telemetry.unixTime, &index);
-    buffer_append_uint8(buf, dataFrame->gps.fix, &index);
-    buffer_append_float32(buf, dataFrame->gps.lat, 100, &index);
-    buffer_append_float32(buf, dataFrame->gps.lng, 100, &index);
-    buffer_append_float32(buf, dataFrame->gps.speed, 100, &index);
-    buffer_append_uint8(buf, calculateChecksum(buf + beginMsg, index - beginMsg), &index);
-    beginMsg = index;
-
-    buffer_append_uint8(buf, 2, &index);
-    buffer_append_uint32(buf, dataFrame->gps.last_msg, &index);
-    buffer_append_uint16(buf, dataFrame->mppt.power, &index);
-    buffer_append_uint32(buf, dataFrame->mppt.last_msg, &index);
-    buffer_append_uint8(buf, calculateChecksum(buf + beginMsg, index - beginMsg), &index);
-    beginMsg = index;
-
-    buffer_append_uint8(buf, 3, &index);
-    buffer_append_uint8(buf, dataFrame->motor.warning, &index);
-    buffer_append_uint8(buf, dataFrame->motor.failures, &index);
-    buffer_append_float32(buf, dataFrame->motor.battery_voltage, 100, &index);
-    buffer_append_float32(buf, dataFrame->motor.battery_current, 100, &index);
-    buffer_append_uint32(buf, dataFrame->motor.last_msg, &index);
-    buffer_append_uint8(buf, calculateChecksum(buf + beginMsg, index - beginMsg), &index);
-    beginMsg = index;
-
-    buffer_append_uint8(buf, 4, &index);
-    buffer_append_float32(buf, dataFrame->bms.battery_voltage, 100, &index);
-    buffer_append_float32(buf, dataFrame->bms.battery_current, 100, &index);
-    buffer_append_float32(buf, dataFrame->bms.min_cel_voltage, 100, &index);
-    buffer_append_uint8(buf, calculateChecksum(buf + beginMsg, index - beginMsg), &index);
-    beginMsg = index;
-
-    buffer_append_uint8(buf, 5, &index);
-    buffer_append_float32(buf, dataFrame->bms.max_cel_voltage, 100, &index);
-    buffer_append_uint32(buf, dataFrame->bms.last_msg, &index);
-    
-    buffer_append_uint8(buf, calculateChecksum(buf + beginMsg, index - beginMsg), &index);
-    beginMsg = index;
-}
-
 //constructs the dataFrame from the received buffer
 void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
-    int32_t index = 0;
-    //if in the future id's are added for extra messages
-    // uint8_t id = buffer_get_uint8(buf, &index);
-    
+    int32_t index = 1;
+
     dataFrame->telemetry.unixTime   = buffer_get_uint32(buf, &index);
     dataFrame->gps.fix              = buffer_get_uint8(buf, &index);
     dataFrame->gps.lat              = buffer_get_float32(buf, 100, &index);
@@ -89,27 +42,28 @@ void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     dataFrame->bms.last_msg        = buffer_get_uint32(buf, &index);
 }
 
-void constructESPInfo(DataFrame *dataFrame, uint8_t *buf) {
-    int32_t index = 0;
-    buffer_append_uint32(buf, dataFrame->telemetry.NTPtime, &index);
-    buffer_append_uint8(buf, dataFrame->telemetry.espStatus, &index);
-    buffer_append_uint8(buf, dataFrame->telemetry.mqttStatus, &index);
-    buffer_append_uint8(buf, dataFrame->telemetry.internetConnection, &index);
-    buffer_append_uint8(buf, calculateChecksum(buf, index), &index);
-}
+void espInfoFromPayload(DataFrame *dataFrame, uint8_t *buf) {
+    int32_t index = 1;
 
-bool parseESPInfo(DataFrame *dataFrame, uint8_t *buf) {
-    int32_t index = 0;
     dataFrame->telemetry.NTPtime = buffer_get_uint32(buf, &index);
     dataFrame->telemetry.espStatus = buffer_get_uint8(buf, &index);
     dataFrame->telemetry.mqttStatus = buffer_get_uint8(buf, &index);
     dataFrame->telemetry.internetConnection = buffer_get_uint8(buf, &index);
-    uint8_t checksum  = buffer_get_uint8(buf, &index);
-    if (calculateChecksum(buf, index-1) != checksum) return false;
-    return true;
 }
 
+void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t buf) {
+    int32_t index = 1;
 
+    uint8_t ssidLength = buffer_get_uint8(buf, &index);
+    uint8_t passwordLength = buffer_get_uint8(buf, &index);
+
+    for (uint8_t i = 0; i < ssidLength; i++) {
+        wifiCredentials->ssid[i] = buffer_get_uint8(buf, &index);
+    }
+    for (uint8_t i = 0; i < passwordLength; i++) {
+        wifiCredentials->password[i] = buffer_get_uint8(buf, &index);
+    }
+}
 
 //inplace unpackaging of the payload
 bool unpackPayload(uint8_t *data, size_t len) {
@@ -147,9 +101,22 @@ bool unpackPayload(uint8_t *data, size_t len) {
 
 //parse a frame into a DataFrame
 //returns bool: true if parse is succesfull, false if not.
-bool parseFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
+bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len) {
     if (unpackPayload(buf, len)) {
-        dataFrameFromPayload(dataFrame, buf);
+        int32_t index = 0;
+        //if in the future id's are added for extra messages
+        uint8_t id = buffer_get_uint8(buf, &index);
+        switch (id) {
+            case 1:
+                dataFrameFromPayload(dataFrame, buf);
+                break;
+            case 2:
+                wifiCredentialsFromPayload(wifiCredentials, buf);
+                break;
+            case 3:
+                espInfoFromPayload(dataFrame, buf);
+                break;
+        }       
         return true;
     } else return false;
 }
@@ -198,8 +165,9 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
 
     buffer_append_uint8(buf, SpiHeaderByte, &index);
 
+    append_uint8_with_stuffing(buf, 1, &index);
     append_uint32_with_stuffing(buf, dataFrame->telemetry.unixTime, &index);
-
+    
     append_uint8_with_stuffing(buf, dataFrame->gps.fix, &index);
     append_float32_with_stuffing(buf, dataFrame->gps.lat, 100, &index);
     append_float32_with_stuffing(buf, dataFrame->gps.lng, 100, &index);
@@ -221,6 +189,40 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
     append_float32_with_stuffing(buf, dataFrame->bms.max_cel_voltage, 100, &index);
     append_uint32_with_stuffing(buf, dataFrame->bms.last_msg, &index);
 
+    append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
+
+    buffer_append_uint8(buf, SpiTrailerByte, &index);
+}
+
+void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf) {
+    int32_t index = 0;
+    buffer_append_uint8(buf, SpiHeaderByte, &index);
+
+    append_uint8_with_stuffing(buf, 3, &index);
+    append_uint32_with_stuffing(buf, dataFrame->telemetry.NTPtime, &index);
+    append_uint8_with_stuffing(buf, dataFrame->telemetry.espStatus, &index);
+    append_uint8_with_stuffing(buf, dataFrame->telemetry.mqttStatus, &index);
+    append_uint8_with_stuffing(buf, dataFrame->telemetry.internetConnection, &index);
+    append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
+
+    buffer_append_uint8(buf, SpiTrailerByte, &index);
+}
+
+void createWiFiCredentialsFrame(char *ssid, uint8_t ssidLen, char *password, uint8_t passwordLen, uint8_t *buf, size_t len) {
+    int32_t index = 0;
+
+    buffer_append_uint8(buf, SpiHeaderByte, &index);
+    //id byte
+    buffer_append_uint8(buf, 2, &index);
+
+    append_uint8_with_stuffing(buf, ssidLen, &index);
+    append_uint8_with_stuffing(buf, passwordLen, &index);
+    for (int i =0; i < ssidLen; i++) {
+        append_uint8_with_stuffing(buf, ssid[i], &index);
+    }
+    for (int i =0; i < passwordLen; i++) {
+        append_uint8_with_stuffing(buf, password[i], &index);
+    }
     append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
 
     buffer_append_uint8(buf, SpiTrailerByte, &index);

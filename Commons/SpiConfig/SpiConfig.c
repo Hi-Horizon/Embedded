@@ -19,7 +19,9 @@ uint8_t calculateChecksum(uint8_t *msg, int32_t messageSize) {
 void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 1;
 
-    dataFrame->telemetry.unixTime   = buffer_get_uint32(buf, &index);
+    dataFrame->telemetry.unixTime           = buffer_get_uint32(buf, &index);
+    dataFrame->telemetry.wifiSetupControl   = buffer_get_uint8(buf, &index);
+
     dataFrame->gps.fix              = buffer_get_uint8(buf, &index);
     dataFrame->gps.lat              = buffer_get_float32(buf, 100, &index);
     dataFrame->gps.lng              = buffer_get_float32(buf, 100, &index);
@@ -167,6 +169,7 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
 
     append_uint8_with_stuffing(buf, 1, &index);
     append_uint32_with_stuffing(buf, dataFrame->telemetry.unixTime, &index);
+    append_uint8_with_stuffing(buf, dataFrame->telemetry.wifiSetupControl, &index);
     
     append_uint8_with_stuffing(buf, dataFrame->gps.fix, &index);
     append_float32_with_stuffing(buf, dataFrame->gps.lat, 100, &index);
@@ -208,20 +211,20 @@ void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf) {
     buffer_append_uint8(buf, SpiTrailerByte, &index);
 }
 
-void createWiFiCredentialsFrame(char *ssid, uint8_t ssidLen, char *password, uint8_t passwordLen, uint8_t *buf, size_t len) {
+void createWiFiCredentialsFrame(WifiCredentials *wc, uint8_t *buf) {
     int32_t index = 0;
 
     buffer_append_uint8(buf, SpiHeaderByte, &index);
     //id byte
     buffer_append_uint8(buf, 2, &index);
 
-    append_uint8_with_stuffing(buf, ssidLen, &index);
-    append_uint8_with_stuffing(buf, passwordLen, &index);
-    for (int i =0; i < ssidLen; i++) {
-        append_uint8_with_stuffing(buf, ssid[i], &index);
+    append_uint8_with_stuffing(buf, wc->ssidLength, &index);
+    append_uint8_with_stuffing(buf, wc->passwordLength, &index);
+    for (int i =0; i < wc->ssidLength; i++) {
+        append_uint8_with_stuffing(buf, wc->ssid[i], &index);
     }
-    for (int i =0; i < passwordLen; i++) {
-        append_uint8_with_stuffing(buf, password[i], &index);
+    for (int i =0; i < wc->passwordLength; i++) {
+        append_uint8_with_stuffing(buf, wc->password[i], &index);
     }
     append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
 

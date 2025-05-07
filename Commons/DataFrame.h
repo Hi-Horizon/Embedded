@@ -82,6 +82,10 @@ typedef struct
         
         uint8_t SD_error;
         
+        // 0 = Normal operation
+        // 1 = WiFi Setup mode
+        uint8_t wifiSetupControl; 
+        
         uint8_t espStatus;
         uint8_t mqttStatus;
         uint8_t internetConnection;

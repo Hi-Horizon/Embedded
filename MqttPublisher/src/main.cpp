@@ -29,7 +29,7 @@ DataFrame dataFrame;
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
 // are present.
-WifiCredentials wificredentials;
+WifiCredentials wifiCredentials;
 BearSSL::CertStore certStore;
 WiFiClientSecure espClient;
 PubSubClient * client;
@@ -74,7 +74,17 @@ void setup() {
   LittleFS.begin();
   
   //SEARCHING WIFI
-  search_wifi(&status);
+  //send packet with local wificredentials
+  createWiFiCredentialsFrame(&wifiCredentials, spi_tx_buf);
+  for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+  }
+  //parse response, this should be a wificredentials frame
+  parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf));
+
+  //try to connect to wifi, 
+  //TODO: need to be able to listen to toggles MTU
+  connect_wifi(&status, &wifiCredentials);
 
   timeClient.begin();
   timeClient.update();
@@ -156,7 +166,7 @@ void loop() {
     // }
     // Serial.println(msglength);
     
-    if (parseFrame(&dataFrame, &wificredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
+    if (parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
       digitalWrite(LED_BUILTIN, LOW);
       snprintf (msg, MSG_BUFFER_SIZE, 
         "{"

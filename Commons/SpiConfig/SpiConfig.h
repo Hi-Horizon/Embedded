@@ -26,7 +26,7 @@ bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t 
 
 void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
 void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf);
-void createWiFiCredentialsFrame(char *ssid, uint8_t ssidLen, char *password, uint8_t passwordLen, uint8_t *buf, size_t len);
+void createWiFiCredentialsFrame(WifiCredentials *wc, uint8_t *buf);
 
 #ifdef __cplusplus
 }

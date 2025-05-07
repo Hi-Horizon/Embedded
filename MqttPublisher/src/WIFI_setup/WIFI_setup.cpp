@@ -24,11 +24,12 @@ void search_wifi(espStatus* status) {
     }
 }
 
-void connect_wifi(espStatus* status) {
+void connect_wifi(espStatus* status, WifiCredentials *wc) {
   status->updateStatus(WIFI_LOGIN_TRY);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(wifi_ssid, wifi_password);
+
+  WiFi.begin(wc->ssid, wc->password);
   Serial.println("trying to connect...");
   unsigned long timoutTimer = millis();
   while (millis() - timoutTimer < 30000uL ) { //timeout after 5 seconds

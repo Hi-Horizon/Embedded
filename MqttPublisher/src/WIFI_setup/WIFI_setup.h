@@ -1,6 +1,7 @@
 #ifndef WIFIsetup_h
 #define WIFIsetup_h
 
+#include <SpiConfig.h>
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <wifiConfig.h>
@@ -11,6 +12,7 @@
 #include <ArduinoJson.h>
 
 void search_wifi(espStatus* status);
+void connect_wifi(espStatus* status, WifiCredentials *wifiCredentials);
 void configure_WiFi(espStatus* status);
 
 #endif

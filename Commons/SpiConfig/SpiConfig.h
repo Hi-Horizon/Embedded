@@ -17,7 +17,9 @@ extern "C" {
 
 typedef struct {
     char ssid[128];
+    uint8_t ssidLength;
     char password[128];
+    uint8_t passwordLength;
 } WifiCredentials;
 
 bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len);

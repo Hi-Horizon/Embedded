@@ -79,4 +79,40 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 	return fresult;
 }
 
+FRESULT saveWifiCredentials(WifiCredentials *wc) {
+	f_open(&file, "wifi.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+
+	//write length+ssid
+	FRESULT fresult = f_write(&file, &wc->ssidLength, 1, NULL);
+	fresult = f_write(&file, wc->ssid, wc->ssidLength, NULL);
+	//write length+password
+	fresult = f_write(&file, &wc->passwordLength, 1, NULL);
+	fresult = f_write(&file, wc->password, wc->passwordLength, NULL);
+
+	f_close(&file);
+
+	return fresult;
+}
+
+FRESULT readWifiCredentials(WifiCredentials *wc) {
+	char buf[268];
+	uint16_t bytesRead = 0;
+
+	f_open(&file, "wifi.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	FRESULT fresult = f_read(&file, &buf, 268, &bytesRead);
+	f_close(&file);
+
+	wc->ssidLength = buf[0];
+	for (int i = 0; i < wc->ssidLength; i++) {
+		wc->ssid[i] = buf[i+1];
+	}
+
+	wc->passwordLength = buf[wc->ssidLength+1];
+	for (int i = 0; i < wc->ssidLength + wc->passwordLength + 2; i++) {
+		wc->ssid[i] = buf[i + wc->ssidLength + 2];
+	}
+
+	return fresult;
+}
+
 

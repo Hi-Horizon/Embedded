@@ -10,6 +10,7 @@
 
 #include "DataFrame.h"
 #include "app_fatfs.h"
+#include "SpiConfig/SpiConfig.h"
 #include <stdio.h>
 #include <string.h>
 

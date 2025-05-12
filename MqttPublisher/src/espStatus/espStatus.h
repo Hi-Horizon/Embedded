@@ -20,6 +20,7 @@
 #define CONNECTING_BROKER         10
 #define BROKER_CONNECTION_FAILED  11
 #define CONNECTED                 12
+#define FORCE_SPI_RESET           13
 
 class espStatus {
     public:

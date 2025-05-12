@@ -3,9 +3,10 @@
 
 #include <buffer/buffer.h>
 #include "DataFrame.h"
-#include "SpiConfig.h"
+#include "SpiConfig/SpiConfig.h"
 #include "stm32g4xx_hal.h"
 
 void sendDataToEsp(SPI_HandleTypeDef *spi, DataFrame* data);
+void sendDataToEsp2(SPI_HandleTypeDef *spi, DataFrame* data);
 
 #endif

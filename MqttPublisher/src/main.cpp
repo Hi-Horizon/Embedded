@@ -16,12 +16,12 @@
 #include <espStatus/espStatus.h>
 
 #include <DataFrame.h>
-#include <SPISlave.h>
 #include <buffer.h>
 #include <SpiControl.h>
+#include <SpiConfig.h>
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
-
+#include <SPI.h>
 DataFrame dataFrame;
 
 // Update these with values suitable for your network.
@@ -29,6 +29,7 @@ DataFrame dataFrame;
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
 // are present.
+WifiCredentials wifiCredentials;
 BearSSL::CertStore certStore;
 WiFiClientSecure espClient;
 PubSubClient * client;
@@ -42,12 +43,12 @@ unsigned long stalenessTimer = 0; //staleness check timer
 uint32_t timeSinceNTP = 0;
 bool timeSyncDone = false;
 uint8_t staleness = 0;
-bool validNewMessage = false;
+bool validNewMessage = true;
 uint8_t oldstaleness = 0;
 
-// String wifi_ssid = "";
-// String wifi_password = "";
-// bool wifiCredentialsReceived = false;
+#define SPI_BUFFER_SIZE 128
+uint8_t spi_tx_buf[SPI_BUFFER_SIZE] = {};
+uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
 
 #define MSG_BUFFER_SIZE (3000)
 char msg[MSG_BUFFER_SIZE];
@@ -65,18 +66,31 @@ void setup() {
   delay(500);
   Serial.println();
 
-  //SPI INIT
-  SPISlave.onData([](uint8_t *data, size_t len) {
-    validNewMessage = receiveSpiData(&dataFrame, data, len);
-  });
-
-  SPISlave.begin();
+  SPI.begin();
 
   //CERT FILE LOADER INIT
   LittleFS.begin();
   
   //SEARCHING WIFI
-  search_wifi(&status);
+  //get credentials from stm32, ask for frame until succesfully parsed from buffer
+  while (!parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_rx_buf))){
+    spi_tx_buf[0] = 2;
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+      spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+    }
+    SPI.endTransaction();    
+
+    // for(unsigned long i=0; i < 40; i++) {
+    //   Serial.print(spi_rx_buf[i]);
+    //   Serial.print(',');
+    // }
+    // Serial.println();
+    delay(1000);
+  }
+
+  //try to connect to wifi
+  connect_wifi(&status, &wifiCredentials);
 
   timeClient.begin();
   timeClient.update();
@@ -104,75 +118,119 @@ void setup() {
 
   //CONNECT MQTT
   client = new PubSubClient(*bear);
+  client->setBufferSize(3000);
 
   const char* mqtt_server_prim = mqtt_server;
   client->setServer(mqtt_server_prim, 8883);
   client->setCallback(onMQTTReceive);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void loop() {
-  //first check if internet is still connected
+  client->loop();
+  // first check if internet is still connected
   if (WiFi.status() != WL_CONNECTED) {              
-    status.updateStatus(WiFi.status());
+    dataFrame.telemetry.espStatus = WiFi.status();
   }
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
-    status.updateStatus(BROKER_CONNECTION_FAILED);  
+    dataFrame.telemetry.espStatus = BROKER_CONNECTION_FAILED;  
     reconnect();
   }
-  client->loop();
 
-  //TODO: should be in a function 
-  if (millis() - stalenessTimer > 3000L) {
-    if (oldstaleness == staleness) {
-      status.updateStatus(HARDWARE_FAULT);
-    }
-    else if (status.getStatus() == HARDWARE_FAULT) {
-      status.updateStatus(CONNECTED);
-    }
-    oldstaleness = staleness;
-    stalenessTimer = millis();
+  // //TODO: should be in a function 
+  // if (millis() - stalenessTimer > 3000L) {
+  //   if (oldstaleness == staleness) {
+  //     status.updateStatus(HARDWARE_FAULT);
+  //   }
+  //   else if (status.getStatus() == HARDWARE_FAULT) {
+  //     status.updateStatus(CONNECTED);
+  //   }
+  //   oldstaleness = staleness;
+  //   stalenessTimer = millis();
 
-    Serial.print("status is: ");
-    Serial.println(status.getStatus());
-  }
+  //   Serial.print("status is: ");
+  //   Serial.println(status.getStatus());
+  // }
   
-  if (millis() - lastMsg > 1000L && validNewMessage) {
-    digitalWrite(LED_BUILTIN, LOW);
-    status.updateConnectionStrength(WiFi.RSSI());
-    snprintf (msg, MSG_BUFFER_SIZE, 
-      "{"
-      "\"mtuT\":%u,"
-      "\"gpsT\":%u,"
-      "\"mpptT\":%u,"
-      "\"lat\":%f,"
-      "\"lng\":%f,"
-      "\"v\":%f,"
-      "\"Pz\":%i,"
-      "\"mc\":%f,"
-      "\"Pu\":%f,"
-      "\"vm\":%f"
-      "}"
-    , dataFrame.telemetry.unixTime
-    , dataFrame.gps.last_msg
-    , dataFrame.mppt.last_msg
-    , dataFrame.gps.lat
-    , dataFrame.gps.lng
-    , dataFrame.gps.speed
-    , dataFrame.mppt.power
-    , dataFrame.motor.battery_current
-    , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
-    , dataFrame.motor.battery_voltage);
+  if (millis() - lastMsg > 1000L) {
+    dataFrame.telemetry.internetConnection = WiFi.RSSI();
+    dataFrame.telemetry.mqttStatus = client->state();
+    //sendAndReceivebuffer
+    //TODO: put in method in SpiControl
+    createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
+    dataFrame.telemetry.espStatus = CONNECTED;
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    spi_tx_buf[0] = 1;
+    for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+    }
+    SPI.endTransaction();
 
-    digitalWrite(LED_BUILTIN, HIGH);
-    client->publish("data", msg);
-    lastMsg = millis();
-    validNewMessage = false;
+    // int32_t msglength = 0;
+    // for(unsigned int i=0; i < sizeof(spi_rx_buf); i++) {
+	  //   Serial.print(spi_rx_buf[i]);
+    //   Serial.print(',');
+    //   msglength++;
+    // }
+    // Serial.println(msglength);
     
-    //for troubleshooting purposes
-    // Serial.println("");
-    // Serial.print(msg);
-    // Serial.println("");
+    if (parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
+      digitalWrite(LED_BUILTIN, LOW);
+      snprintf (msg, MSG_BUFFER_SIZE, 
+        "{"
+        "\"mtuT\":%u,"
+        "\"fix\":%u,"
+        "\"lat\":%f,"
+        "\"lng\":%f,"
+        "\"v\":%f,"
+        "\"gpsT\":%u,"
+        "\"Pz\":%i,"
+        "\"mpptT\":%u,"
+        "\"escW\":%u,"
+        "\"escF\":%u,"
+        "\"vm\":%f"
+        "\"mc\":%f,"
+        "\"Pu\":%f,"
+        "\"escT\":%u,"
+        "\"bv\":%f,"
+        "\"bc\":%f,"
+        "\"bMinv\":%f,"
+        "\"bMaxv\":%f,"
+        "\"bmsT\":%u,"
+        "}"
+        , dataFrame.telemetry.unixTime
+        , dataFrame.gps.fix
+        , dataFrame.gps.lat
+        , dataFrame.gps.lng
+        , dataFrame.gps.speed
+        , dataFrame.gps.last_msg
+        , dataFrame.mppt.power
+        , dataFrame.mppt.last_msg
+        , dataFrame.motor.warning
+        , dataFrame.motor.failures
+        , dataFrame.motor.battery_voltage
+        , dataFrame.motor.battery_current
+        , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
+        , dataFrame.motor.last_msg
+        , dataFrame.bms.battery_voltage
+        , dataFrame.bms.battery_current
+        , dataFrame.bms.min_cel_voltage
+        , dataFrame.bms.max_cel_voltage
+        , dataFrame.bms.last_msg
+      );  
+
+      digitalWrite(LED_BUILTIN, HIGH);
+      bool success = client->publish("data", msg);
+      //for troubleshooting purposes
+      Serial.print("message sent: ");
+      Serial.println(success);
+    } 
+    // else {
+    //   dataFrame.telemetry.espStatus = FORCE_SPI_RESET;
+    //   delay(2000);
+    // }
+    lastMsg = millis();
   }
 }
 
@@ -195,24 +253,24 @@ uint32_t setDateTime() {
 }
 
 void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  // Serial.print("Message arrived [");
+  // Serial.print(topic);
+  // Serial.print("] ");
+  // for (int i = 0; i < length; i++) {
+  //   Serial.print((char)payload[i]);
+  // }
+  // Serial.println();
 
-  // Switch on the LED if the first character is present
-  if ((char)payload[0] != NULL) {
-    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-    delay(500);
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
-  } else {
-    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
-  }
+  // // Switch on the LED if the first character is present
+  // if ((char)payload[0] != NULL) {
+  //   digitalWrite(LED_BUILTIN, LOW); // Turn the LED on (Note that LOW is the voltage level
+  //   // but actually the LED is on; this is because
+  //   // it is active low on the ESP-01)
+  //   delay(500);
+  //   digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
+  // } else {
+  //   digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
+  // }
 }
 
 void reconnect() {

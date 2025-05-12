@@ -75,15 +75,14 @@ bool receiveSpiData(DataFrame *dataFrame, uint8_t *data, size_t len) {
         } //generic byte
         index++;
     }
-
-    // Serial.println(buf[0]);
     if (!isChecksumValid(buf, bufIndex)) {
         // Serial.println("checksum failed");
         // Serial.println(buf[bufIndex]);
         return false;
     }
     
-    parsePayload(dataFrame, buf);
+    // parsePayload(dataFrame, buf);
+    // dataFrameFromBuf(dataFrame, buf);
     return true;
 }
 

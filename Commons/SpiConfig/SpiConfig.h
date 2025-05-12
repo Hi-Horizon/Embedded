@@ -15,11 +15,18 @@ extern "C" {
 #define RESPONSE_SIZE 14
 #define MSG_MAX_SIZE = 32
 
-void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
-bool parseFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
+typedef struct {
+    char ssid[128];
+    uint8_t ssidLength;
+    char password[128];
+    uint8_t passwordLength;
+} WifiCredentials;
 
-void constructESPInfo(DataFrame *dataFrame, uint8_t *buf);
-bool parseESPInfo(DataFrame *dataFrame, uint8_t *buf);
+bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len);
+
+void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
+void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf);
+void createWiFiCredentialsFrame(WifiCredentials *wc, uint8_t *buf);
 
 #ifdef __cplusplus
 }

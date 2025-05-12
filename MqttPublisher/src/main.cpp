@@ -29,6 +29,7 @@ DataFrame dataFrame;
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
 // are present.
+WifiCredentials wifiCredentials;
 BearSSL::CertStore certStore;
 WiFiClientSecure espClient;
 PubSubClient * client;
@@ -71,7 +72,25 @@ void setup() {
   LittleFS.begin();
   
   //SEARCHING WIFI
-  search_wifi(&status);
+  //get credentials from stm32, ask for frame until succesfully parsed from buffer
+  while (!parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_rx_buf))){
+    spi_tx_buf[0] = 2;
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+      spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+    }
+    SPI.endTransaction();    
+
+    // for(unsigned long i=0; i < 40; i++) {
+    //   Serial.print(spi_rx_buf[i]);
+    //   Serial.print(',');
+    // }
+    // Serial.println();
+    delay(1000);
+  }
+
+  //try to connect to wifi
+  connect_wifi(&status, &wifiCredentials);
 
   timeClient.begin();
   timeClient.update();
@@ -104,6 +123,7 @@ void setup() {
   const char* mqtt_server_prim = mqtt_server;
   client->setServer(mqtt_server_prim, 8883);
   client->setCallback(onMQTTReceive);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void loop() {
@@ -138,14 +158,16 @@ void loop() {
     dataFrame.telemetry.mqttStatus = client->state();
     //sendAndReceivebuffer
     //TODO: put in method in SpiControl
-    constructESPInfo(&dataFrame, spi_tx_buf);
+    createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
     dataFrame.telemetry.espStatus = CONNECTED;
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-    for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+    spi_tx_buf[0] = 1;
+    for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
 	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
     }
+    SPI.endTransaction();
 
-    int32_t msglength = 0;
+    // int32_t msglength = 0;
     // for(unsigned int i=0; i < sizeof(spi_rx_buf); i++) {
 	  //   Serial.print(spi_rx_buf[i]);
     //   Serial.print(',');
@@ -153,7 +175,7 @@ void loop() {
     // }
     // Serial.println(msglength);
     
-    if (parseFrame(&dataFrame, spi_rx_buf, sizeof(spi_tx_buf))) {
+    if (parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
       digitalWrite(LED_BUILTIN, LOW);
       snprintf (msg, MSG_BUFFER_SIZE, 
         "{"

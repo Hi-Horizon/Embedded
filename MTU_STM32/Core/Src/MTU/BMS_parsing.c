@@ -71,20 +71,33 @@ void requestBmsData(UART_HandleTypeDef *husart, uint8_t *buf) {
 	uint16_t checksum2 = CRC16(data + 4, 2);
 	uint16_t checksum3 = CRC16(data + 8, 2);
 	uint16_t checksum4 = CRC16(data + 12, 2);
+
 	data[2] = 0x00FF & checksum;
 	data[3] = (0xFF00 & checksum) >> 8;
+
 	data[6] = 0x00FF & checksum2;
 	data[7] = (0xFF00 & checksum2) >> 8;
+
 	data[10] = 0x00FF & checksum3;
 	data[11] = (0xFF00 & checksum3) >> 8;
+
 	data[14] = 0x00FF & checksum4;
 	data[15] = (0xFF00 & checksum4) >> 8;
-	HAL_UART_Transmit(husart, data, 16, 100);
+	HAL_UART_Transmit(husart, data, 16, 1000);
 }
 
 void parseBmsMessage(DataFrame* data, const uint8_t* buf, uint16_t size) {
+	//if begin doesn't have message header
+	if (buf[0] != 0xAA) return;
+
+	uint16_t crc = 0;
+	memcpy (&crc, buf + (size - 2), 2);
+	//if checksum failed
+	if (crc != CRC16(buf, size - 2)) return;
+
 	float f;
 	uint16_t word;
+
 	switch(buf[1]) {
 		case 0x14: // voltage
 			memcpy (&f, buf + 2, 4);

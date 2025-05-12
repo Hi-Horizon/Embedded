@@ -32,7 +32,8 @@ void connect_wifi(espStatus* status, WifiCredentials *wc) {
   WiFi.begin(wc->ssid, wc->password);
   Serial.println("trying to connect...");
   unsigned long timoutTimer = millis();
-  while (millis() - timoutTimer < 30000uL ) { //timeout after 5 seconds
+  // while (millis() - timoutTimer < 30000uL ) { //timeout after 5 seconds
+  while (WiFi.status() != WL_CONNECTED) {
     yield();
     switch(WiFi.status()) {
         case WL_CONNECTED:

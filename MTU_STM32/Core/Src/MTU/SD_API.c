@@ -80,7 +80,7 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 }
 
 FRESULT saveWifiCredentials(WifiCredentials *wc) {
-	f_open(&file, "wifi.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	f_open(&file, "wifi.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
 
 	//write length+ssid
 	FRESULT fresult = f_write(&file, &wc->ssidLength, 1, NULL);
@@ -96,21 +96,17 @@ FRESULT saveWifiCredentials(WifiCredentials *wc) {
 
 FRESULT readWifiCredentials(WifiCredentials *wc) {
 	char buf[268];
-	uint16_t bytesRead = 0;
+	UINT bytesRead = 0;
 
-	f_open(&file, "wifi.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
-	FRESULT fresult = f_read(&file, &buf, 268, &bytesRead);
+	f_open(&file, "wifi.txt", FA_READ);
+	FRESULT fresult = f_read(&file, buf, 268, &bytesRead);
 	f_close(&file);
 
 	wc->ssidLength = buf[0];
-	for (int i = 0; i < wc->ssidLength; i++) {
-		wc->ssid[i] = buf[i+1];
-	}
+	memcpy(wc->ssid, buf + 1, wc->ssidLength);
 
 	wc->passwordLength = buf[wc->ssidLength+1];
-	for (int i = 0; i < wc->ssidLength + wc->passwordLength + 2; i++) {
-		wc->ssid[i] = buf[i + wc->ssidLength + 2];
-	}
+	memcpy(wc->password, buf + wc->ssidLength + 2, wc->passwordLength);
 
 	return fresult;
 }

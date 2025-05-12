@@ -7,6 +7,19 @@
 
 #include <SpiConfig/SpiConfig.h>
 
+uint8_t calculateChecksumWithStuffing(uint8_t *msg, int32_t messageSize) {
+	uint8_t checksum = 0;
+    int i = 1;
+	while (i < messageSize) {
+        if (msg[i] == SpiHeaderByte)  return 0;     //wrong headerbyte
+        if (msg[i] == SpiTrailerByte) return 0; 
+        if (msg[i] == SpiFlagByte) i++;
+		checksum += msg[i];
+        i++;
+	}
+	return checksum;
+}
+
 uint8_t calculateChecksum(uint8_t *msg, int32_t messageSize) {
 	uint8_t checksum = 0;
 	for (int i=0; i < messageSize; i++) {
@@ -53,7 +66,7 @@ void espInfoFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     dataFrame->telemetry.internetConnection = buffer_get_uint8(buf, &index);
 }
 
-void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t buf) {
+void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t *buf) {
     int32_t index = 1;
 
     uint8_t ssidLength = buffer_get_uint8(buf, &index);
@@ -71,18 +84,27 @@ void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t buf) {
 bool unpackPayload(uint8_t *data, size_t len) {
     size_t index = 0;
     int32_t unpackIndex = 0;
+    int32_t trailerIndex = len - 1;
 
     //search for the header byte
     while(index < len) { 
         if (data[index] == SpiHeaderByte) break;
         index++;
     }
+    if (index == len) return false;
+    //search for checksumIndex
+    while(trailerIndex >= 0) { 
+        if (data[trailerIndex] == SpiTrailerByte) break;
+        trailerIndex--;
+    }
+    if (trailerIndex == -1) return false;
+
     //parse rest of the frame
     index++;
     while(index < len) { 
         uint8_t next = data[index];
 
-        if (next == SpiHeaderByte)  return false; //wrong headerbyte
+        if (next == SpiHeaderByte)  return false;     //wrong headerbyte
         if (next == SpiTrailerByte) break;        //end of message
         if (next == SpiFlagByte) {                //next byte is payload data, not a frame byte
             index++;
@@ -94,7 +116,7 @@ bool unpackPayload(uint8_t *data, size_t len) {
         index++;
     }
 
-    if (!calculateChecksum(data, unpackIndex)) {
+    if (calculateChecksum(data, unpackIndex - 1) != data[unpackIndex - 1]) {
         return false;
     }
 
@@ -192,7 +214,7 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
     append_float32_with_stuffing(buf, dataFrame->bms.max_cel_voltage, 100, &index);
     append_uint32_with_stuffing(buf, dataFrame->bms.last_msg, &index);
 
-    append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
+    append_uint8_with_stuffing(buf, calculateChecksumWithStuffing(buf, index), &index);
 
     buffer_append_uint8(buf, SpiTrailerByte, &index);
 }
@@ -206,7 +228,7 @@ void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf) {
     append_uint8_with_stuffing(buf, dataFrame->telemetry.espStatus, &index);
     append_uint8_with_stuffing(buf, dataFrame->telemetry.mqttStatus, &index);
     append_uint8_with_stuffing(buf, dataFrame->telemetry.internetConnection, &index);
-    append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
+    append_uint8_with_stuffing(buf, calculateChecksumWithStuffing(buf, index), &index);
 
     buffer_append_uint8(buf, SpiTrailerByte, &index);
 }
@@ -226,7 +248,7 @@ void createWiFiCredentialsFrame(WifiCredentials *wc, uint8_t *buf) {
     for (int i =0; i < wc->passwordLength; i++) {
         append_uint8_with_stuffing(buf, wc->password[i], &index);
     }
-    append_uint8_with_stuffing(buf, calculateChecksum(buf, index), &index);
+    append_uint8_with_stuffing(buf, calculateChecksumWithStuffing(buf, index), &index);
 
     buffer_append_uint8(buf, SpiTrailerByte, &index);
 }

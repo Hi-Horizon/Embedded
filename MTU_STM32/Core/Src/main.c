@@ -96,6 +96,9 @@ uint32_t              TxMailbox;
 
 //ESP
 #define ESP_BUF_SIZE 128
+bool EspWaitForCommand = true;
+bool espValidConn = true;
+uint8_t nextMsgId = 0;
 uint8_t esp_tx_buf[ESP_BUF_SIZE];
 uint8_t esp_rx_buf[ESP_BUF_SIZE];
 
@@ -148,7 +151,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		parseBmsMessage(&data, MPPT_buf, MPPT_BUF_SIZE);
 	}
 	//GPS
-	else if (huart->Instance == UART5) {
+	if (huart->Instance == UART5) {
 		parseGPS(&data, GPS_buf, Size);
 	}
 }
@@ -161,9 +164,43 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 }
 
 // SPI_DMA_RX: receiving messages
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi)
+//void HAL_SPI_IRQHandler(SPI_HandleTypeDef * hspi) {
+//	nextMsgId = esp_rx_buf[0];
+//	EspWaitForCommand = false;
+//	//prep next message
+//	switch (nextMsgId) {
+//		case 1:
+//			createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
+//			break;
+//		case 2:
+//			memcpy(esp_tx_buf, wifiCredentials.ssid, wifiCredentials.ssidLength);
+//			memcpy(esp_tx_buf + wifiCredentials.ssidLength, wifiCredentials.password, wifiCredentials.passwordLength);
+//			break;
+//	}
+//	HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+//}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
 {
-    HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+//	if (EspWaitForCommand) {
+		nextMsgId = esp_rx_buf[0];
+//		EspWaitForCommand = false;
+		//prep next message
+		switch (nextMsgId) {
+			case 1:
+				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
+				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
+				break;
+			case 2:
+				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
+				break;
+		}
+		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+//	}
+//	} else {
+//		EspWaitForCommand = true;
+//		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, 1);
+//	}
 }
 
 /* USER CODE END PFP */
@@ -217,6 +254,9 @@ int main(void)
   //SD INIT
   sdResult = initSD(&fs, &total, &free_space);
 
+  //get wifi credentials
+  sdResult = readWifiCredentials(&wifiCredentials);
+
   //UART INIT
   //clear the RDR register to avoid overrun error
   volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
@@ -232,6 +272,7 @@ int main(void)
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
+  //listen for command Id
   HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
   /* USER CODE END 2 */
@@ -249,9 +290,6 @@ while (1)
 	//general tasks
 	if (HAL_GetTick() - lastTaskPerform > 1000) {
 		writeDataFrameToSD(&data);
-//		sendDataToEsp2(&hspi2, &data);
-		//TODO: send packet with escape
-		createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
 		sendToCan(&hfdcan1, &data);
 		GPS_bufferToDataFrame(&data);
 
@@ -276,7 +314,7 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
-    if (HAL_GetTick() > 5000 && (!parseFrame(&data, &wifiCredentials, esp_rx_buf, ESP_BUF_SIZE) || data.telemetry.espStatus == 13)) {
+    if (HAL_GetTick() > 5000 && (!espValidConn || data.telemetry.espStatus == 13)) {
     	HAL_NVIC_SystemReset(); // reset microcontroller if spi communication doesnt work
     }
 
@@ -363,7 +401,7 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
   hfdcan1.Init.NominalPrescaler = 16;
-  hfdcan1.Init.NominalSyncJumpWidth = 13;
+  hfdcan1.Init.NominalSyncJumpWidth = 3;
   hfdcan1.Init.NominalTimeSeg1 = 39;
   hfdcan1.Init.NominalTimeSeg2 = 40;
   hfdcan1.Init.DataPrescaler = 1;

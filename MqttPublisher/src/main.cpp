@@ -66,24 +66,30 @@ void setup() {
   delay(500);
   Serial.println();
 
-  configure_WiFi(&status);
-
   SPI.begin();
 
   //CERT FILE LOADER INIT
   LittleFS.begin();
   
   //SEARCHING WIFI
-  //send packet with local wificredentials
-  createWiFiCredentialsFrame(&wifiCredentials, spi_tx_buf);
-  for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
-    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
-  }
-  //parse response, this should be a wificredentials frame
-  parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf));
+  //get credentials from stm32, ask for frame until succesfully parsed from buffer
+  while (!parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_rx_buf))){
+    spi_tx_buf[0] = 2;
+    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+    for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+      spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+    }
+    SPI.endTransaction();    
 
-  //try to connect to wifi, 
-  //TODO: need to be able to listen to toggles MTU
+    // for(unsigned long i=0; i < 40; i++) {
+    //   Serial.print(spi_rx_buf[i]);
+    //   Serial.print(',');
+    // }
+    // Serial.println();
+    delay(1000);
+  }
+
+  //try to connect to wifi
   connect_wifi(&status, &wifiCredentials);
 
   timeClient.begin();
@@ -117,6 +123,7 @@ void setup() {
   const char* mqtt_server_prim = mqtt_server;
   client->setServer(mqtt_server_prim, 8883);
   client->setCallback(onMQTTReceive);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void loop() {
@@ -151,12 +158,14 @@ void loop() {
     dataFrame.telemetry.mqttStatus = client->state();
     //sendAndReceivebuffer
     //TODO: put in method in SpiControl
-    createESPInfoFrame(&dataFrame, spi_tx_buf);
+    createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
     dataFrame.telemetry.espStatus = CONNECTED;
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-    for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+    spi_tx_buf[0] = 1;
+    for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
 	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
     }
+    SPI.endTransaction();
 
     // int32_t msglength = 0;
     // for(unsigned int i=0; i < sizeof(spi_rx_buf); i++) {

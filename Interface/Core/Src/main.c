@@ -69,6 +69,13 @@ bool blockbtn = false;
 #define debounceTime 200
 uint32_t lastPress = 0;
 
+//wifiConfig button
+bool requestWifiConfigMode = false;
+
+bool blockWifiBtn = false;
+#define wifiDebounceTime 500
+uint32_t lastWifiPress = 0;
+
 unsigned long lastRefresh = 0;
 char screenStr[80];
 int screenCharSize;
@@ -101,6 +108,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 		counter++;
 		blockbtn = true;
 	}
+    if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) // If The INT Source Is EXTI Line9 (A9 Pin)
+    {
+		requestWifiConfigMode = !requestWifiConfigMode;
+		blockWifiBtn = true;
+    }
 }
 
 float float_overflowCheck(float val, float replace) {
@@ -180,6 +192,17 @@ void screen1() {
 	}
 }
 
+void screen2() {
+	screenCharSize = sprintf(screenStr, "connect to access   point");
+	for (int i = 0; i < screenCharSize; i++) {
+		lcd_send_data(screenStr[i]);
+	}
+	//clear the rest of the chars
+	for (int i = 0; i <  80 - screenCharSize; i++) {
+		lcd_send_data(' ');
+	}
+}
+
 void drawDataScreen(int screencode) {
   lcd_send_cmd (0x80|0x00);
   switch (screencode) {
@@ -188,6 +211,9 @@ void drawDataScreen(int screencode) {
     	break;
     case 1:
     	screen1();
+    	break;
+    case 2:
+    	screen2();
     	break;
   }
 }
@@ -261,8 +287,15 @@ int main(void)
 		blockbtn = false;
 		lastPress = HAL_GetTick();
 	}
+
+	if (HAL_GetTick() - lastWifiPress > wifiDebounceTime) {
+		blockWifiBtn = false;
+		lastWifiPress = HAL_GetTick();
+	}
+
 	if (HAL_GetTick() - lastRefresh > 1000L) {
-		drawDataScreen(menuSelect);
+		if (requestWifiConfigMode) drawDataScreen(2);
+		else 					   drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();
 	}
   }
@@ -538,9 +571,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : wificonfig_Pin */
+  GPIO_InitStruct.Pin = wificonfig_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(wificonfig_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);

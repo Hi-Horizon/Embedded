@@ -54,8 +54,8 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 
-
-FDCAN_TxHeaderTypeDef TxHeader;
+uint8_t TxData[8];
+FDCAN_TxHeaderTypeDef screenHeader;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 DataFrame data;
@@ -253,11 +253,11 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
-  TxHeader.Identifier 	= 0x001;
-  TxHeader.IdType 		= FDCAN_STANDARD_ID;
-  TxHeader.TxFrameType 	= FDCAN_DATA_FRAME;
-  TxHeader.DataLength 	= FDCAN_DLC_BYTES_8;
-  TxHeader.FDFormat		= FDCAN_CLASSIC_CAN;
+  screenHeader.Identifier 	= 0x731;
+  screenHeader.IdType 		= FDCAN_STANDARD_ID;
+  screenHeader.TxFrameType 	= FDCAN_DATA_FRAME;
+  screenHeader.DataLength 	= FDCAN_DLC_BYTES_8;
+  screenHeader.FDFormat		= FDCAN_CLASSIC_CAN;
 
   lcd_init();
   HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
@@ -297,6 +297,13 @@ int main(void)
 		if (requestWifiConfigMode) drawDataScreen(2);
 		else 					   drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();
+		//send screen status through CAN
+		int32_t ind = 0;
+		buffer_append_uint8(TxData, 0, &ind); //status
+		buffer_append_uint8(TxData, 0, &ind); //fans
+		buffer_append_uint8(TxData, (uint8_t) requestWifiConfigMode, &ind); //wifiSetup
+
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &screenHeader, TxData);
 	}
   }
   /* USER CODE END 3 */

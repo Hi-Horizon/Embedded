@@ -190,6 +190,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
+				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
 				break;
 			}
 

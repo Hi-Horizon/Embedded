@@ -13,6 +13,6 @@
 
 void search_wifi(espStatus* status);
 void connect_wifi(espStatus* status, WifiCredentials *wifiCredentials);
-void configure_WiFi(espStatus* status);
+void configure_WiFi(espStatus* status, WifiCredentials *wifiCredentials);
 
 #endif

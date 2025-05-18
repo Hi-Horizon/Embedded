@@ -2,7 +2,7 @@
 
 void connect_wifi(espStatus* status);
 void ask_wifi_credentials(espStatus* status);
-void startServer();
+void startServer(WifiCredentials *wc);
 
 DNSServer dnsServer;
 const byte DNS_PORT = 53;
@@ -24,15 +24,15 @@ void search_wifi(espStatus* status) {
     }
 }
 
+// infinitely try to connect to WiFi given the current wifi credentials
 void connect_wifi(espStatus* status, WifiCredentials *wc) {
   status->updateStatus(WIFI_LOGIN_TRY);
 
   WiFi.mode(WIFI_STA);
-
   WiFi.begin(wc->ssid, wc->password);
+
   Serial.println("trying to connect...");
-  unsigned long timoutTimer = millis();
-  // while (millis() - timoutTimer < 30000uL ) { //timeout after 5 seconds
+  //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
     switch(WiFi.status()) {
@@ -48,16 +48,18 @@ void connect_wifi(espStatus* status, WifiCredentials *wc) {
   }
 }
 
-//starts esp in accesspoint mode and hosts a webpage
-void configure_WiFi(espStatus* status) {
+//Starts esp in accesspoint mode and hosts a webpage, 
+//shuts down when credentials are given
+void configure_WiFi(espStatus* status, WifiCredentials *wc) {
   wifiCredentialsReceived = false;
   status->updateStatus(WIFI_SEARCH);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP("Hi-Horizon Telemetry", "12345678");
-  startServer();
+  startServer(wc);
 }
 
+//Callback to handle the POST request of the API
 void handlePost(){
   if (initServer.hasArg("plain") == false) {
     initServer.send(400, "application/json", "error: data not sent using JSON format");
@@ -73,11 +75,13 @@ void handlePost(){
   timeSinceReceived = millis();
 }
 
-void startServer() {
+//Host the webpage, shut down once valid input has been given
+void startServer(WifiCredentials *wc) {
     Serial.println("Starting server...");
     initServer.on("/setWiFi", HTTP_POST, handlePost);
     initServer.begin();
 
+    //server loop
     bool done = false;
     while (!done) {
         initServer.handleClient();
@@ -86,6 +90,13 @@ void startServer() {
           done = true;
         }
     }
+
+    //put values into the WifiCredentials struct
+    wc->ssidLength = wifi_ssid.length();
+    wc->passwordLength = wifi_password.length();
+
+    wifi_ssid.toCharArray(wc->ssid, wifi_ssid.length() + 1);
+    wifi_password.toCharArray(wc->password, wifi_password.length() + 1);
 
     Serial.println("got credentials! shutting down server...");
     initServer.stop();

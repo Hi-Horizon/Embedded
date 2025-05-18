@@ -80,7 +80,7 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 }
 
 FRESULT saveWifiCredentials(WifiCredentials *wc) {
-	f_open(&file, "wifi.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+	f_open(&file, "wifi.txt", FA_OPEN_ALWAYS | FA_WRITE);
 
 	//write length+ssid
 	FRESULT fresult = f_write(&file, &wc->ssidLength, 1, NULL);

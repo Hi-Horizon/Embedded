@@ -30,6 +30,7 @@
 #include "string.h"
 #include "time.h"
 
+#include "MTU/SD_API.h"
 #include "MTU/CAN_API.h"
 #include "MTU/BMS_API.h"
 #include "MTU/GPS_API.h"
@@ -103,6 +104,7 @@ uint8_t esp_tx_buf[ESP_BUF_SIZE];
 uint8_t esp_rx_buf[ESP_BUF_SIZE];
 
 WifiCredentials wifiCredentials;
+uint8_t prevRequestValue = 0;
 
 //IMU
 uint8_t IMU_txbuf[8];
@@ -114,6 +116,7 @@ HAL_StatusTypeDef IMU_status;
 FATFS fs;
 FRESULT sdResult;
 char sdBuf[1024];
+bool needToSaveWiFiConfig = false;
 
 UINT br, bw;
 uint32_t total, free_space;
@@ -163,44 +166,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
 }
 
-// SPI_DMA_RX: receiving messages
-//void HAL_SPI_IRQHandler(SPI_HandleTypeDef * hspi) {
-//	nextMsgId = esp_rx_buf[0];
-//	EspWaitForCommand = false;
-//	//prep next message
-//	switch (nextMsgId) {
-//		case 1:
-//			createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
-//			break;
-//		case 2:
-//			memcpy(esp_tx_buf, wifiCredentials.ssid, wifiCredentials.ssidLength);
-//			memcpy(esp_tx_buf + wifiCredentials.ssidLength, wifiCredentials.password, wifiCredentials.passwordLength);
-//			break;
-//	}
-//	HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-//}
 
+uint8_t espParseBuf[ESP_BUF_SIZE];
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
 {
-//	if (EspWaitForCommand) {
 		nextMsgId = esp_rx_buf[0];
-//		EspWaitForCommand = false;
 		//prep next message
 		switch (nextMsgId) {
 			case 1:
 				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
 				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
 				break;
-			case 2:
+			case 2: //request for wifiCredentials
 				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
+				break;
+			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
+				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
+				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
+				data.telemetry.wifiSetupControl = 0;
 				break;
 		}
 		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-//	}
-//	} else {
-//		EspWaitForCommand = true;
-//		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, 1);
-//	}
 }
 
 /* USER CODE END PFP */
@@ -314,8 +300,18 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
+	if (needToSaveWiFiConfig) {
+		sdResult = saveWifiCredentials(&wifiCredentials);
+		if (sdResult == FR_OK) needToSaveWiFiConfig = false; //success
+	}
+
+	if (prevRequestValue == 0 && data.display.requestWifiSetup == 1) {
+		data.telemetry.wifiSetupControl = 1;
+	}
+	prevRequestValue = data.display.requestWifiSetup;
+
     if (HAL_GetTick() > 5000 && (!espValidConn || data.telemetry.espStatus == 13)) {
-    	HAL_NVIC_SystemReset(); // reset microcontroller if spi communication doesnt work
+    	HAL_NVIC_SystemReset(); // reset microcontroller if SPI communication doesn't work
     }
 
     /* USER CODE END WHILE */

@@ -40,8 +40,6 @@ espStatus status;
 
 unsigned long lastMsg = 0; //msg send timer
 unsigned long stalenessTimer = 0; //staleness check timer
-uint32_t timeSinceNTP = 0;
-bool timeSyncDone = false;
 uint8_t staleness = 0;
 bool validNewMessage = true;
 uint8_t oldstaleness = 0;
@@ -53,11 +51,11 @@ uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
 #define MSG_BUFFER_SIZE (3000)
 char msg[MSG_BUFFER_SIZE];
 
-// void connect_wifi();
 uint32_t setDateTime();
 void reconnect();
 void onMQTTReceive(char* topic, byte* payload, unsigned int length);
-// void ask_wifi_credentials();
+void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
+void print_buf(uint8_t *buf, uint32_t len);
 
 void setup() {
   //SERIAL INIT
@@ -79,13 +77,7 @@ void setup() {
     for(unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
       spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
     }
-    SPI.endTransaction();    
-
-    // for(unsigned long i=0; i < 40; i++) {
-    //   Serial.print(spi_rx_buf[i]);
-    //   Serial.print(',');
-    // }
-    // Serial.println();
+    SPI.endTransaction(); 
     delay(1000);
   }
 
@@ -95,8 +87,6 @@ void setup() {
   timeClient.begin();
   timeClient.update();
   dataFrame.telemetry.NTPtime = timeClient.getEpochTime();
-  timeSinceNTP = millis();
-  timeSyncDone = true;
 
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
 
@@ -153,85 +143,105 @@ void loop() {
   //   Serial.println(status.getStatus());
   // }
   
-  if (millis() - lastMsg > 1000L) {
-    dataFrame.telemetry.internetConnection = WiFi.RSSI();
-    dataFrame.telemetry.mqttStatus = client->state();
-    //sendAndReceivebuffer
-    //TODO: put in method in SpiControl
-    createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
-    dataFrame.telemetry.espStatus = CONNECTED;
-    SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-    spi_tx_buf[0] = 1;
-    for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
-	    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
-    }
-    SPI.endTransaction();
+  if (dataFrame.telemetry.wifiSetupControl == 0) {
+    if (millis() - lastMsg > 1000L) {
+      //Get diagnostic info
+      dataFrame.telemetry.internetConnection = WiFi.RSSI();
+      dataFrame.telemetry.mqttStatus = client->state();
 
-    // int32_t msglength = 0;
-    // for(unsigned int i=0; i < sizeof(spi_rx_buf); i++) {
-	  //   Serial.print(spi_rx_buf[i]);
-    //   Serial.print(',');
-    //   msglength++;
-    // }
-    // Serial.println(msglength);
+      //Send ESP status to MTU through SPI
+      createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
+      dataFrame.telemetry.espStatus = CONNECTED;
+      SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+      spi_tx_buf[0] = 1;
+      for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+        spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+      }
+      SPI.endTransaction();
     
-    if (parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
-      digitalWrite(LED_BUILTIN, LOW);
-      snprintf (msg, MSG_BUFFER_SIZE, 
-        "{"
-        "\"mtuT\":%u,"
-        "\"fix\":%u,"
-        "\"lat\":%f,"
-        "\"lng\":%f,"
-        "\"v\":%f,"
-        "\"gpsT\":%u,"
-        "\"Pz\":%i,"
-        "\"mpptT\":%u,"
-        "\"escW\":%u,"
-        "\"escF\":%u,"
-        "\"vm\":%f"
-        "\"mc\":%f,"
-        "\"Pu\":%f,"
-        "\"escT\":%u,"
-        "\"bv\":%f,"
-        "\"bc\":%f,"
-        "\"bMinv\":%f,"
-        "\"bMaxv\":%f,"
-        "\"bmsT\":%u,"
-        "}"
-        , dataFrame.telemetry.unixTime
-        , dataFrame.gps.fix
-        , dataFrame.gps.lat
-        , dataFrame.gps.lng
-        , dataFrame.gps.speed
-        , dataFrame.gps.last_msg
-        , dataFrame.mppt.power
-        , dataFrame.mppt.last_msg
-        , dataFrame.motor.warning
-        , dataFrame.motor.failures
-        , dataFrame.motor.battery_voltage
-        , dataFrame.motor.battery_current
-        , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
-        , dataFrame.motor.last_msg
-        , dataFrame.bms.battery_voltage
-        , dataFrame.bms.battery_current
-        , dataFrame.bms.min_cel_voltage
-        , dataFrame.bms.max_cel_voltage
-        , dataFrame.bms.last_msg
-      );  
+      // If MTU gave data as response, parse and send data with MQTT
+      if (parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf))) {
+        digitalWrite(LED_BUILTIN, LOW);
+        snprintf (msg, MSG_BUFFER_SIZE, 
+          "{"
+          "\"mtuT\":%u,"
+          "\"fix\":%u,"
+          "\"lat\":%f,"
+          "\"lng\":%f,"
+          "\"v\":%f,"
+          "\"gpsT\":%u,"
+          "\"Pz\":%i,"
+          "\"mpptT\":%u,"
+          "\"escW\":%u,"
+          "\"escF\":%u,"
+          "\"vm\":%f"
+          "\"mc\":%f,"
+          "\"Pu\":%f,"
+          "\"escT\":%u,"
+          "\"bv\":%f,"
+          "\"bc\":%f,"
+          "\"bMinv\":%f,"
+          "\"bMaxv\":%f,"
+          "\"bmsT\":%u,"
+          "}"
+          , dataFrame.telemetry.unixTime
+          , dataFrame.gps.fix
+          , dataFrame.gps.lat
+          , dataFrame.gps.lng
+          , dataFrame.gps.speed
+          , dataFrame.gps.last_msg
+          , dataFrame.mppt.power
+          , dataFrame.mppt.last_msg
+          , dataFrame.motor.warning
+          , dataFrame.motor.failures
+          , dataFrame.motor.battery_voltage
+          , dataFrame.motor.battery_current
+          , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
+          , dataFrame.motor.last_msg
+          , dataFrame.bms.battery_voltage
+          , dataFrame.bms.battery_current
+          , dataFrame.bms.min_cel_voltage
+          , dataFrame.bms.max_cel_voltage
+          , dataFrame.bms.last_msg
+        );  
 
-      digitalWrite(LED_BUILTIN, HIGH);
-      bool success = client->publish("data", msg);
-      //for troubleshooting purposes
-      Serial.print("message sent: ");
-      Serial.println(success);
-    } 
-    // else {
-    //   dataFrame.telemetry.espStatus = FORCE_SPI_RESET;
-    //   delay(2000);
-    // }
-    lastMsg = millis();
+        digitalWrite(LED_BUILTIN, HIGH);
+        bool success = client->publish("data", msg);
+        //for troubleshooting purposes
+        Serial.print("message sent: ");
+        Serial.println(success);
+
+        lastMsg = millis();
+      } 
+      // else {
+      //   dataFrame.telemetry.espStatus = FORCE_SPI_RESET;
+      //   delay(2000);
+      // }
+    }  
+
+    if (dataFrame.telemetry.wifiSetupControl == 1) {
+      wifi_config_mode(&status, &wifiCredentials);
+    }
   }
+}
+
+void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
+  configure_WiFi(status, wifiCredentials);
+
+  Serial.println(wifiCredentials->ssidLength);
+  Serial.println(wifiCredentials->passwordLength);
+
+  connect_wifi(status, wifiCredentials);
+
+  //send wifiCredentials to MTU
+  spi_tx_buf[0] = 3;
+  createWiFiCredentialsFrame(wifiCredentials, spi_tx_buf + 1);
+  dataFrame.telemetry.espStatus = CONNECTED;
+  SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+  for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+  }
+  SPI.endTransaction();
 }
 
 uint32_t setDateTime() {
@@ -302,3 +312,12 @@ void reconnect() {
 
   status.updateStatus(CONNECTED);
 }
+
+void print_buf(uint8_t *buf, uint32_t len) {
+  for(unsigned int i=0; i < len; i++) {
+    Serial.print(buf[i]);
+    Serial.print(',');
+  }
+  Serial.println();
+}
+

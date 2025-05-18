@@ -69,13 +69,13 @@ void espInfoFromPayload(DataFrame *dataFrame, uint8_t *buf) {
 void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t *buf) {
     int32_t index = 1;
 
-    uint8_t ssidLength = buffer_get_uint8(buf, &index);
-    uint8_t passwordLength = buffer_get_uint8(buf, &index);
+    wifiCredentials->ssidLength = buffer_get_uint8(buf, &index);
+    wifiCredentials->passwordLength = buffer_get_uint8(buf, &index);
 
-    for (uint8_t i = 0; i < ssidLength; i++) {
+    for (uint8_t i = 0; i < wifiCredentials->ssidLength; i++) {
         wifiCredentials->ssid[i] = buffer_get_uint8(buf, &index);
     }
-    for (uint8_t i = 0; i < passwordLength; i++) {
+    for (uint8_t i = 0; i < wifiCredentials->passwordLength; i++) {
         wifiCredentials->password[i] = buffer_get_uint8(buf, &index);
     }
 }
@@ -128,7 +128,6 @@ bool unpackPayload(uint8_t *data, size_t len) {
 bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len) {
     if (unpackPayload(buf, len)) {
         int32_t index = 0;
-        //if in the future id's are added for extra messages
         uint8_t id = buffer_get_uint8(buf, &index);
         switch (id) {
             case 1:

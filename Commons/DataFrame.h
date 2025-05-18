@@ -70,6 +70,7 @@ typedef struct
 {
         uint8_t temp;
         bool fans;
+        uint8_t requestWifiSetup;
         uint32_t last_msg;
 } Screen_data;
 

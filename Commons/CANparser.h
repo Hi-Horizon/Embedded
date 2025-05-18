@@ -12,7 +12,7 @@
 //	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
 //}
 
-buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
+uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
 	uint16_t res = 	((uint16_t) buffer[*index + 1]) << 8 |
 					((uint16_t) buffer[*index]);
 	*index += 2;
@@ -190,7 +190,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
+				dataset->display.requestWifiSetup = buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -208,6 +208,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->telemetry.espStatus = buffer_get_uint8(payload, &ind);
 				dataset->telemetry.internetConnection = buffer_get_uint8(payload, &ind);
+				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
 				break;
 			}
 

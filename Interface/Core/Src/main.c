@@ -294,7 +294,7 @@ int main(void)
 	}
 
 	if (HAL_GetTick() - lastRefresh > 1000L) {
-		if (requestWifiConfigMode) drawDataScreen(2);
+		if (requestWifiConfigMode == 1) drawDataScreen(2);
 		else 					   drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();
 		//send screen status through CAN

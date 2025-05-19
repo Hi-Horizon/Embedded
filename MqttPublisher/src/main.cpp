@@ -83,7 +83,12 @@ void setup() {
   }
 
   //Try to connect to wifi
-  connect_wifi(&dataFrame, &status, &wifiCredentials, requestDataframe);
+  dataFrame.telemetry.wifiSetupControl = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.println("trying to connect again!");
+    connect_wifi(&dataFrame, &status, &wifiCredentials, requestDataframe);
+    if (dataFrame.telemetry.wifiSetupControl == 1) wifi_config_mode(&status, &wifiCredentials);
+  }
 
   timeClient.begin();
   timeClient.update();
@@ -115,6 +120,7 @@ void setup() {
   client->setServer(mqtt_server_prim, 8883);
   client->setCallback(onMQTTReceive);
   digitalWrite(LED_BUILTIN, HIGH);
+  Serial.println("setup finished");
 }
 
 void loop() {
@@ -219,10 +225,11 @@ void loop() {
       //   delay(2000);
       // }
     }  
-
-    if (dataFrame.telemetry.wifiSetupControl == 1) {
-      wifi_config_mode(&status, &wifiCredentials);
-    }
+  }
+  
+  if (dataFrame.telemetry.wifiSetupControl == 1) {
+    Serial.println("starting WiFi config mode");
+    wifi_config_mode(&status, &wifiCredentials);
   }
 }
 

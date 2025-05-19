@@ -29,14 +29,17 @@ void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
   Serial.println("trying to connect...");
 
   unsigned long lastIdlePerform = 0;
+  uint8_t prevWifiSetupControl = data->telemetry.wifiSetupControl;
   //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
     if (millis() - lastIdlePerform > 1000) {
-      idleFn();
-      if (data->telemetry.wifiSetupControl == 1) {
-        configure_WiFi(data, status, wc, idleFn);
+      idleFn();   
+      if (data->telemetry.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
+        Serial.println("stopping wifi search");
+        return; //stop searching if WiFiConfigmode is enabled
       }
+      prevWifiSetupControl = data->telemetry.wifiSetupControl;
       lastIdlePerform = millis();
     }
     

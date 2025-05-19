@@ -56,6 +56,7 @@ void reconnect();
 void onMQTTReceive(char* topic, byte* payload, unsigned int length);
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
 void print_buf(uint8_t *buf, uint32_t len);
+void requestDataframe();
 
 void setup() {
   //SERIAL INIT
@@ -64,13 +65,13 @@ void setup() {
   delay(500);
   Serial.println();
 
+  //SPI Init
   SPI.begin();
 
   //CERT FILE LOADER INIT
   LittleFS.begin();
   
-  //SEARCHING WIFI
-  //get credentials from stm32, ask for frame until succesfully parsed from buffer
+  //get WiFiconfig from stm32, ask for frame until succesfully parsed from buffer
   while (!parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_rx_buf))){
     spi_tx_buf[0] = 2;
     SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
@@ -81,8 +82,8 @@ void setup() {
     delay(1000);
   }
 
-  //try to connect to wifi
-  connect_wifi(&status, &wifiCredentials);
+  //Try to connect to wifi
+  connect_wifi(&dataFrame, &status, &wifiCredentials, requestDataframe);
 
   timeClient.begin();
   timeClient.update();
@@ -226,12 +227,9 @@ void loop() {
 }
 
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
-  configure_WiFi(status, wifiCredentials);
+  configure_WiFi(&dataFrame, status, wifiCredentials, requestDataframe);
 
-  Serial.println(wifiCredentials->ssidLength);
-  Serial.println(wifiCredentials->passwordLength);
-
-  connect_wifi(status, wifiCredentials);
+  connect_wifi(&dataFrame, status, wifiCredentials, requestDataframe);
 
   //send wifiCredentials to MTU
   spi_tx_buf[0] = 3;
@@ -242,6 +240,22 @@ void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
     spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
   }
   SPI.endTransaction();
+}
+
+// callback function, requests dataFrame to be sent by MTU and parses this, 
+// sends ESP diagnostics as well
+void requestDataframe() {
+  Serial.println("Requesting data from MTU in the mean time...");
+  //Send ESP status to MTU through SPI
+  createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
+  dataFrame.telemetry.espStatus = CONNECTED;
+  SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
+  spi_tx_buf[0] = 1;
+  for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
+    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
+  }
+  SPI.endTransaction();
+  parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf));
 }
 
 uint32_t setDateTime() {
@@ -260,27 +274,6 @@ uint32_t setDateTime() {
   struct tm timeinfo;
   gmtime_r(&now, &timeinfo);
   return now;
-}
-
-void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
-  // Serial.print("Message arrived [");
-  // Serial.print(topic);
-  // Serial.print("] ");
-  // for (int i = 0; i < length; i++) {
-  //   Serial.print((char)payload[i]);
-  // }
-  // Serial.println();
-
-  // // Switch on the LED if the first character is present
-  // if ((char)payload[0] != NULL) {
-  //   digitalWrite(LED_BUILTIN, LOW); // Turn the LED on (Note that LOW is the voltage level
-  //   // but actually the LED is on; this is because
-  //   // it is active low on the ESP-01)
-  //   delay(500);
-  //   digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
-  // } else {
-  //   digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off by making the voltage HIGH
-  // }
 }
 
 void reconnect() {
@@ -312,6 +305,10 @@ void reconnect() {
 
   status.updateStatus(CONNECTED);
 }
+
+void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
+  //do nothing if MQTT data is received, yet..
+};
 
 void print_buf(uint8_t *buf, uint32_t len) {
   for(unsigned int i=0; i < len; i++) {

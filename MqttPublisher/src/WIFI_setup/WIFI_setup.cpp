@@ -1,8 +1,6 @@
 #include "WIFI_setup.h"
 
-void connect_wifi(espStatus* status);
-void ask_wifi_credentials(espStatus* status);
-void startServer(WifiCredentials *wc);
+void startServer(DataFrame *data, WifiCredentials *wc, std::function<void ()> idleFn);
 
 DNSServer dnsServer;
 const byte DNS_PORT = 53;
@@ -15,26 +13,33 @@ String wifi_password = Wifi_PASSWORD;
 bool wifiCredentialsReceived = false;
 unsigned long timeSinceReceived = 0;
 
-void search_wifi(espStatus* status) {
-    connect_wifi(status);
-    while (WiFi.status() != WL_CONNECTED) {
-        yield();
-        // ask_wifi_credentials(status);
-        // connect_wifi(status);
-    }
-}
-
-// infinitely try to connect to WiFi given the current wifi credentials
-void connect_wifi(espStatus* status, WifiCredentials *wc) {
+//**
+//* Connects to wifi given the current wifiConfig
+//**
+//* DataFrame* data - dataFrame containing all current data
+//* espStatus* status - status struct for ESP
+//* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
+//* std::function<void ()> idleFn - function to perform during the connection loop
+void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
   status->updateStatus(WIFI_LOGIN_TRY);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(wc->ssid, wc->password);
 
   Serial.println("trying to connect...");
+
+  unsigned long lastIdlePerform = 0;
   //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
+    if (millis() - lastIdlePerform > 1000) {
+      idleFn();
+      if (data->telemetry.wifiSetupControl == 1) {
+        configure_WiFi(data, status, wc, idleFn);
+      }
+      lastIdlePerform = millis();
+    }
+    
     switch(WiFi.status()) {
         case WL_CONNECTED:
             return;
@@ -48,18 +53,26 @@ void connect_wifi(espStatus* status, WifiCredentials *wc) {
   }
 }
 
-//Starts esp in accesspoint mode and hosts a webpage, 
-//shuts down when credentials are given
-void configure_WiFi(espStatus* status, WifiCredentials *wc) {
+//**
+//* Starts esp in accesspoint mode and hosts a webpage, 
+//* shuts down when credentials are given
+//**
+//* DataFrame* data - dataFrame containing all current data
+//* espStatus* status - status struct for ESP
+//* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
+//* std::function<void ()> idleFn - function to perform during the connection loop
+void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
   wifiCredentialsReceived = false;
   status->updateStatus(WIFI_SEARCH);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP("Hi-Horizon Telemetry", "12345678");
-  startServer(wc);
+  startServer(data, wc, idleFn);
 }
 
-//Callback to handle the POST request of the API
+//**
+//* Callback to handle the POST request of the API
+//**
 void handlePost(){
   if (initServer.hasArg("plain") == false) {
     initServer.send(400, "application/json", "error: data not sent using JSON format");
@@ -75,15 +88,34 @@ void handlePost(){
   timeSinceReceived = millis();
 }
 
-//Host the webpage, shut down once valid input has been given
-void startServer(WifiCredentials *wc) {
+//**
+//* Host the webpage, 
+//* shut down once valid input has been given
+//**
+//* DataFrame* data - dataFrame containing all current data
+//* espStatus* status - status struct for ESP
+//* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
+//* std::function<void ()> idleFn - function to perform during the connection loop
+void startServer(DataFrame *data, WifiCredentials *wc, std::function<void ()> idleFn) {
     Serial.println("Starting server...");
     initServer.on("/setWiFi", HTTP_POST, handlePost);
     initServer.begin();
 
+    unsigned long lastIdlePerform = 0;
+
     //server loop
     bool done = false;
     while (!done) {
+        if (millis() - lastIdlePerform > 1000) {
+          idleFn();
+          //if control mode is turned of, shut down server and return immediately
+          if (data->telemetry.wifiSetupControl == 0) {
+            initServer.stop();
+            return;
+          }
+          lastIdlePerform = millis();
+        }
+
         initServer.handleClient();
         //wait for a second to close the server, to handle responses
         if (wifiCredentialsReceived && (millis() - timeSinceReceived > 1000)) {
@@ -101,4 +133,3 @@ void startServer(WifiCredentials *wc) {
     Serial.println("got credentials! shutting down server...");
     initServer.stop();
 }
-

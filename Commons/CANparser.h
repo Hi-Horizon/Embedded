@@ -12,6 +12,13 @@
 //	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
 //}
 
+uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
+	uint16_t res = 	((uint16_t) buffer[*index + 1]) << 8 |
+					((uint16_t) buffer[*index]);
+	*index += 2;
+	return res;
+}
+
 void generate_bit_list(int len, unsigned long data, bool* return_array)
 {
     for(int i = 0; i < len; i++) {
@@ -24,7 +31,57 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 	int32_t ind = 0;
 	switch (id)
 	{
-		//bms
+		//bms cell voltage
+		case 0x200:
+		{
+			ind = 0;
+			for (int i = 0; i < 4; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001f;
+			}
+			break;
+		}
+		case 0x201:
+		{
+			ind = 0;
+			for (int i = 4; i < 8; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
+			}
+			break;
+		}
+		case 0x202:
+		{
+			ind = 0;
+			for (int i = 8; i < 12; i++) {
+				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
+			}
+			break;
+		}
+		case 0x203:
+		{
+			ind = 0;
+			dataset->bms.cell_voltage[12] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
+			dataset->bms.cell_voltage[13] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
+
+			dataset->bms.battery_voltage = buffer_get_uint16_rev_endian(payload, &ind)*0.001;
+			break;
+		}
+		//bms current
+		case 0x204:
+		{
+			ind = 0;
+			dataset->bms.battery_current = buffer_get_uint16_rev_endian(payload, &ind)*0.01;
+			break;
+		}
+		//bms cell temp
+		case 0x2A0:
+		{
+			ind = 0;
+			for (int i = 0; i < 4; i++) {
+				dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01;
+			}
+			break;
+		}
+		//bms (old)
 		case 0x601:
 			{
 				ind = 0;
@@ -133,6 +190,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
+				dataset->display.requestWifiSetup = buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -150,6 +208,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->telemetry.espStatus = buffer_get_uint8(payload, &ind);
 				dataset->telemetry.internetConnection = buffer_get_uint8(payload, &ind);
+				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
 				break;
 			}
 

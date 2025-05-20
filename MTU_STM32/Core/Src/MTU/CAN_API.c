@@ -53,6 +53,7 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	ind = 0;
 	buffer_append_uint8(TxData, data->telemetry.espStatus, &ind);
 	buffer_append_uint8(TxData, data->telemetry.internetConnection, &ind);
+	buffer_append_uint8(TxData, data->telemetry.wifiSetupControl, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &EspHeader, TxData);
 }

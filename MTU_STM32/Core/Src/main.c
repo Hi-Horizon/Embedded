@@ -17,13 +17,12 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <MTU/SD_API.h>
 #include "main.h"
 #include "app_fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "SpiConfig.h"
+#include "SpiConfig/SpiConfig.h"
 #include "MTU/ESP_SPI.h"
 #include "CANparser.h"
 
@@ -31,6 +30,7 @@
 #include "string.h"
 #include "time.h"
 
+#include "MTU/SD_API.h"
 #include "MTU/CAN_API.h"
 #include "MTU/BMS_API.h"
 #include "MTU/GPS_API.h"
@@ -69,6 +69,8 @@ RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi2_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -93,6 +95,17 @@ bool frameDone = false;
 FDCAN_RxHeaderTypeDef RxHeader;
 uint32_t              TxMailbox;
 
+//ESP
+#define ESP_BUF_SIZE 128
+bool EspWaitForCommand = true;
+bool espValidConn = true;
+uint8_t nextMsgId = 0;
+uint8_t esp_tx_buf[ESP_BUF_SIZE];
+uint8_t esp_rx_buf[ESP_BUF_SIZE];
+
+WifiCredentials wifiCredentials;
+uint8_t prevRequestValue = 0;
+
 //IMU
 uint8_t IMU_txbuf[8];
 uint8_t IMU_rxbuf[8];
@@ -103,6 +116,7 @@ HAL_StatusTypeDef IMU_status;
 FATFS fs;
 FRESULT sdResult;
 char sdBuf[1024];
+bool needToSaveWiFiConfig = false;
 
 UINT br, bw;
 uint32_t total, free_space;
@@ -140,7 +154,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		parseBmsMessage(&data, MPPT_buf, MPPT_BUF_SIZE);
 	}
 	//GPS
-	else if (huart->Instance == UART5) {
+	if (huart->Instance == UART5) {
 		parseGPS(&data, GPS_buf, Size);
 	}
 }
@@ -150,6 +164,29 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+}
+
+
+uint8_t espParseBuf[ESP_BUF_SIZE];
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
+{
+		nextMsgId = esp_rx_buf[0];
+		//prep next message
+		switch (nextMsgId) {
+			case 1:
+				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
+				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
+				break;
+			case 2: //request for wifiCredentials
+				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
+				break;
+			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
+				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
+				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
+				data.telemetry.wifiSetupControl = 0;
+				break;
+		}
+		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 }
 
 /* USER CODE END PFP */
@@ -203,6 +240,9 @@ int main(void)
   //SD INIT
   sdResult = initSD(&fs, &total, &free_space);
 
+  //get wifi credentials
+  sdResult = readWifiCredentials(&wifiCredentials);
+
   //UART INIT
   //clear the RDR register to avoid overrun error
   volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
@@ -217,6 +257,9 @@ int main(void)
   setCanTxHeaders();
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+
+  //listen for command Id
+  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
   /* USER CODE END 2 */
 
@@ -233,7 +276,6 @@ while (1)
 	//general tasks
 	if (HAL_GetTick() - lastTaskPerform > 1000) {
 		writeDataFrameToSD(&data);
-		sendDataToEsp(&hspi2, &data);
 		sendToCan(&hfdcan1, &data);
 		GPS_bufferToDataFrame(&data);
 
@@ -258,21 +300,33 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
+	if (needToSaveWiFiConfig) {
+		sdResult = saveWifiCredentials(&wifiCredentials);
+		if (sdResult == FR_OK) needToSaveWiFiConfig = false; //success
+	}
+
+	if (prevRequestValue == 0 && data.display.requestWifiSetup == 1) {
+		data.telemetry.wifiSetupControl = 1;
+	}
+	prevRequestValue = data.display.requestWifiSetup;
+
+    if (HAL_GetTick() > 5000 && (!espValidConn || data.telemetry.espStatus == 13)) {
+    	HAL_NVIC_SystemReset(); // reset microcontroller if SPI communication doesn't work
+    }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 	// TROUBLESHOOT CODE
 
 	// Uncomment this for dummy data generation
-	// fillRandomData(&data);
+//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//
 	////////////////////
   /* USER CODE END 3 */
 }
-
-
 
 /**
   * @brief System Clock Configuration
@@ -343,7 +397,7 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
   hfdcan1.Init.NominalPrescaler = 16;
-  hfdcan1.Init.NominalSyncJumpWidth = 13;
+  hfdcan1.Init.NominalSyncJumpWidth = 3;
   hfdcan1.Init.NominalTimeSeg1 = 39;
   hfdcan1.Init.NominalTimeSeg2 = 40;
   hfdcan1.Init.DataPrescaler = 1;
@@ -650,19 +704,18 @@ static void MX_SPI2_Init(void)
   /* USER CODE END SPI2_Init 1 */
   /* SPI2 parameter configuration*/
   hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Mode = SPI_MODE_SLAVE;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi2.Init.NSS = SPI_NSS_HARD_INPUT;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_ENABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi2.Init.CRCPolynomial = 7;
   hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi2.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   if (HAL_SPI_Init(&hspi2) != HAL_OK)
   {
     Error_Handler();
@@ -730,6 +783,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 
@@ -753,7 +812,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|spi3_cs_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(spi3_cs_GPIO_Port, spi3_cs_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA5 */
   GPIO_InitStruct.Pin = GPIO_PIN_5;
@@ -761,13 +820,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PC11 */
   GPIO_InitStruct.Pin = GPIO_PIN_11;

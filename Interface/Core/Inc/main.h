@@ -72,6 +72,9 @@ void Error_Handler(void);
 #define T_SWCLK_GPIO_Port GPIOA
 #define T_SWO_Pin GPIO_PIN_3
 #define T_SWO_GPIO_Port GPIOB
+#define wificonfig_Pin GPIO_PIN_4
+#define wificonfig_GPIO_Port GPIOB
+#define wificonfig_EXTI_IRQn EXTI4_IRQn
 
 /* USER CODE BEGIN Private defines */
 

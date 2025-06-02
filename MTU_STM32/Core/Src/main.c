@@ -67,7 +67,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 
 RTC_HandleTypeDef hrtc;
 
-SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
 DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
@@ -130,7 +129,6 @@ static void MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART5_Init(void);
 static void MX_LPUART1_UART_Init(void);
-static void MX_SPI2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_RTC_Init(void);
@@ -228,7 +226,6 @@ int main(void)
   MX_I2C1_Init();
   MX_UART5_Init();
   MX_LPUART1_UART_Init();
-  MX_SPI2_Init();
   MX_USART1_UART_Init();
   MX_SPI3_Init();
   if (MX_FATFS_Init() != APP_OK) {
@@ -283,11 +280,11 @@ while (1)
 	}
 
 	//bms data requesting
-	if (HAL_GetTick() - lastMPPTread > 500) {
-		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-		requestBmsData(&huart1, MPPT_buf);
-		lastMPPTread = HAL_GetTick();
-	}
+//	if (HAL_GetTick() - lastMPPTread > 500) {
+//		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//		requestBmsData(&huart1, MPPT_buf);
+//		lastMPPTread = HAL_GetTick();
+//	}
 
 	//if gps has overrun error, clear rdr buffer
 	if (huart5.ErrorCode & 8) {
@@ -304,16 +301,6 @@ while (1)
 		sdResult = saveWifiCredentials(&wifiCredentials);
 		if (sdResult == FR_OK) needToSaveWiFiConfig = false; //success
 	}
-
-	if (prevRequestValue == 0 && data.display.requestWifiSetup == 1) {
-		data.telemetry.wifiSetupControl = 1;
-	}
-	prevRequestValue = data.display.requestWifiSetup;
-
-    if (HAL_GetTick() > 5000 && (!espValidConn || data.telemetry.espStatus == 13)) {
-    	HAL_NVIC_SystemReset(); // reset microcontroller if SPI communication doesn't work
-    }
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -684,45 +671,6 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */
-
-}
-
-/**
-  * @brief SPI2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI2_Init(void)
-{
-
-  /* USER CODE BEGIN SPI2_Init 0 */
-
-  /* USER CODE END SPI2_Init 0 */
-
-  /* USER CODE BEGIN SPI2_Init 1 */
-
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
-  hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_SLAVE;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_HARD_INPUT;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi2.Init.CRCPolynomial = 7;
-  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-  if (HAL_SPI_Init(&hspi2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI2_Init 2 */
-
-  /* USER CODE END SPI2_Init 2 */
 
 }
 

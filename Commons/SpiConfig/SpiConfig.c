@@ -46,8 +46,8 @@ void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     
     dataFrame->motor.warning         = buffer_get_uint8(buf, &index);
     dataFrame->motor.failures        = buffer_get_uint8(buf, &index);
-    dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
     dataFrame->motor.battery_voltage = buffer_get_float32(buf, 100, &index);
+    dataFrame->motor.battery_current = buffer_get_float32(buf, 100, &index);
     dataFrame->motor.last_msg        = buffer_get_uint32(buf, &index);
     
     dataFrame->bms.battery_voltage = buffer_get_float32(buf, 100, &index);

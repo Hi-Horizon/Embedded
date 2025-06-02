@@ -67,10 +67,7 @@ DMA_HandleTypeDef hdma_usart1_rx;
 
 RTC_HandleTypeDef hrtc;
 
-SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi3;
-DMA_HandleTypeDef hdma_spi2_rx;
-DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -130,7 +127,6 @@ static void MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART5_Init(void);
 static void MX_LPUART1_UART_Init(void);
-static void MX_SPI2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_RTC_Init(void);
@@ -164,29 +160,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
-}
-
-
-uint8_t espParseBuf[ESP_BUF_SIZE];
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
-{
-		nextMsgId = esp_rx_buf[0];
-		//prep next message
-		switch (nextMsgId) {
-			case 1:
-				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
-				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
-				break;
-			case 2: //request for wifiCredentials
-				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
-				break;
-			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
-				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
-				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
-				data.telemetry.wifiSetupControl = 0;
-				break;
-		}
-		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 }
 
 /* USER CODE END PFP */
@@ -228,7 +201,6 @@ int main(void)
   MX_I2C1_Init();
   MX_UART5_Init();
   MX_LPUART1_UART_Init();
-  MX_SPI2_Init();
   MX_USART1_UART_Init();
   MX_SPI3_Init();
   if (MX_FATFS_Init() != APP_OK) {
@@ -258,9 +230,6 @@ int main(void)
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
-  //listen for command Id
-  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -283,11 +252,11 @@ while (1)
 	}
 
 	//bms data requesting
-	if (HAL_GetTick() - lastMPPTread > 500) {
-		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-		requestBmsData(&huart1, MPPT_buf);
-		lastMPPTread = HAL_GetTick();
-	}
+//	if (HAL_GetTick() - lastMPPTread > 500) {
+//		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+//		requestBmsData(&huart1, MPPT_buf);
+//		lastMPPTread = HAL_GetTick();
+//	}
 
 	//if gps has overrun error, clear rdr buffer
 	if (huart5.ErrorCode & 8) {
@@ -304,16 +273,6 @@ while (1)
 		sdResult = saveWifiCredentials(&wifiCredentials);
 		if (sdResult == FR_OK) needToSaveWiFiConfig = false; //success
 	}
-
-	if (prevRequestValue == 0 && data.display.requestWifiSetup == 1) {
-		data.telemetry.wifiSetupControl = 1;
-	}
-	prevRequestValue = data.display.requestWifiSetup;
-
-    if (HAL_GetTick() > 5000 && (!espValidConn || data.telemetry.espStatus == 13)) {
-    	HAL_NVIC_SystemReset(); // reset microcontroller if SPI communication doesn't work
-    }
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -688,45 +647,6 @@ static void MX_RTC_Init(void)
 }
 
 /**
-  * @brief SPI2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI2_Init(void)
-{
-
-  /* USER CODE BEGIN SPI2_Init 0 */
-
-  /* USER CODE END SPI2_Init 0 */
-
-  /* USER CODE BEGIN SPI2_Init 1 */
-
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
-  hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_SLAVE;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_HARD_INPUT;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi2.Init.CRCPolynomial = 7;
-  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-  if (HAL_SPI_Init(&hspi2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI2_Init 2 */
-
-  /* USER CODE END SPI2_Init 2 */
-
-}
-
-/**
   * @brief SPI3 Initialization Function
   * @param None
   * @retval None
@@ -783,12 +703,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
-  /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
-  /* DMA1_Channel4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 

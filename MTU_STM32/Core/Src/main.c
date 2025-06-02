@@ -68,6 +68,8 @@ DMA_HandleTypeDef hdma_usart1_rx;
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi2_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -162,6 +164,29 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
 }
 
+
+uint8_t espParseBuf[ESP_BUF_SIZE];
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
+{
+		nextMsgId = esp_rx_buf[0];
+		//prep next message
+		switch (nextMsgId) {
+			case 1:
+				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
+				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
+				break;
+			case 2: //request for wifiCredentials
+				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
+				break;
+			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
+				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
+				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
+				data.telemetry.wifiSetupControl = 0;
+				break;
+		}
+		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -229,6 +254,9 @@ int main(void)
   setCanTxHeaders();
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+
+  //listen for command Id
+  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
   /* USER CODE END 2 */
 
@@ -703,6 +731,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 

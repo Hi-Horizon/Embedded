@@ -70,6 +70,7 @@ void readAndParseCan();
 bool newData = false;
 
 struct can_frame canRxMsg;
+struct can_frame canEspTxMsg;
 MCP2515 mcp2515(D8);
 
 void setup() {
@@ -139,6 +140,9 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH);
 
   //CAN Init
+  canEspTxMsg.can_id  = 0x751;
+  canEspTxMsg.can_dlc = 3;
+
   mcp2515.reset();
   mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
   mcp2515.setNormalMode();
@@ -221,7 +225,11 @@ void sendDataToBroker() {
 }
 
 void sendEspInfoToCan() {
+  canEspTxMsg.data[0] = dataFrame.telemetry.espStatus;
+  canEspTxMsg.data[1] = dataFrame.telemetry.internetConnection;
+  canEspTxMsg.data[2] = dataFrame.telemetry.wifiSetupControl;
 
+  mcp2515.sendMessage(&canEspTxMsg);
 }
 
 void updateConnectionStatus() {

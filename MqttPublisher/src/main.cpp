@@ -61,10 +61,15 @@ void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
 void print_buf(uint8_t *buf, uint32_t len);
 void requestDataframe();
 
+void sendDataToBroker();
+void sendEspInfoToCan();
+void updateConnectionStatus();
+void readAndParseCan();
+
 //control
 bool newData = false;
 
-struct can_frame canMsg;
+struct can_frame canRxMsg;
 MCP2515 mcp2515(D8);
 
 void setup() {
@@ -142,25 +147,88 @@ void setup() {
 }
 
 void loop() {
+  //MQTT client routine
   client->loop();
+  updateConnectionStatus();
+  readAndParseCan();
 
-  if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
-    CAN_parseMessage(canMsg.can_id, canMsg.data, &dataFrame);
-    newData = true;
-
-    Serial.print(canMsg.can_id, HEX); // print ID
-    Serial.print(" "); 
-    Serial.print(canMsg.can_dlc, HEX); // print DLC
-    Serial.print(" ");
-    
-    for (int i = 0; i<canMsg.can_dlc; i++)  {  // print the data
-      Serial.print(canMsg.data[i],HEX);
-      Serial.print(" ");
-    }
-
-    Serial.println();      
-  }
+  if (newData && millis() - lastMsg > 1000L) {
+    sendEspInfoToCan();
+    sendDataToBroker();
+  } 
   
+  // TODO: implement the wifi setup API feature
+  // if (dataFrame.telemetry.wifiSetupControl == 1) {
+  //   Serial.println("starting WiFi config mode");
+  //   wifi_config_mode(&status, &wifiCredentials);
+  // }
+}
+
+void sendDataToBroker() {
+  // If MTU gave data as response, parse and send data with MQTT
+  digitalWrite(LED_BUILTIN, LOW);
+  snprintf (msg, MSG_BUFFER_SIZE, 
+    "{"
+    "\"mtuT\":%u,"
+    "\"fix\":%u,"
+    "\"lat\":%f,"
+    "\"lng\":%f,"
+    "\"v\":%f,"
+    "\"gpsT\":%u,"
+    "\"Pz\":%i,"
+    "\"mpptT\":%u,"
+    "\"escW\":%u,"
+    "\"escF\":%u,"
+    "\"vm\":%f,"
+    "\"mc\":%f,"
+    "\"Pu\":%f,"
+    "\"escT\":%u,"
+    "\"bv\":%f,"
+    "\"bc\":%f,"
+    "\"bMinv\":%f,"
+    "\"bMaxv\":%f,"
+    "\"bmsT\":%u"
+    "}"
+    , dataFrame.telemetry.unixTime
+    , dataFrame.gps.fix
+    , dataFrame.gps.lat
+    , dataFrame.gps.lng
+    , dataFrame.gps.speed
+    , dataFrame.gps.last_msg
+    , dataFrame.mppt.power
+    , dataFrame.mppt.last_msg
+    , dataFrame.motor.warning
+    , dataFrame.motor.failures
+    , dataFrame.motor.battery_voltage
+    , dataFrame.motor.battery_current
+    , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
+    , dataFrame.motor.last_msg
+    , dataFrame.bms.battery_voltage
+    , dataFrame.bms.battery_current
+    , dataFrame.bms.min_cel_voltage
+    , dataFrame.bms.max_cel_voltage
+    , dataFrame.bms.last_msg
+  );  
+  bool success = client->publish("data", msg);  
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  lastMsg = millis();
+  newData = false;
+
+  //debug for troubleshooting purposes
+  Serial.print("message sent: ");
+  Serial.println(success);
+}
+
+void sendEspInfoToCan() {
+
+}
+
+void updateConnectionStatus() {
+  //Get diagnostic info
+  dataFrame.telemetry.internetConnection = WiFi.RSSI();
+  dataFrame.telemetry.mqttStatus = client->state();
+
   // first check if internet is still connected
   if (WiFi.status() != WL_CONNECTED) {              
     dataFrame.telemetry.espStatus = WiFi.status();
@@ -171,7 +239,6 @@ void loop() {
     reconnect();
   }
 
-  // //TODO: should be in a function 
   // if (millis() - stalenessTimer > 3000L) {
   //   if (oldstaleness == staleness) {
   //     status.updateStatus(HARDWARE_FAULT);
@@ -185,70 +252,25 @@ void loop() {
   //   Serial.print("status is: ");
   //   Serial.println(status.getStatus());
   // }
-  if (newData && millis() - lastMsg > 1000L) {
-    //Get diagnostic info
-    dataFrame.telemetry.internetConnection = WiFi.RSSI();
-    dataFrame.telemetry.mqttStatus = client->state();
-  
-    // If MTU gave data as response, parse and send data with MQTT
-    digitalWrite(LED_BUILTIN, LOW);
-    snprintf (msg, MSG_BUFFER_SIZE, 
-      "{"
-      "\"mtuT\":%u,"
-      "\"fix\":%u,"
-      "\"lat\":%f,"
-      "\"lng\":%f,"
-      "\"v\":%f,"
-      "\"gpsT\":%u,"
-      "\"Pz\":%i,"
-      "\"mpptT\":%u,"
-      "\"escW\":%u,"
-      "\"escF\":%u,"
-      "\"vm\":%f,"
-      "\"mc\":%f,"
-      "\"Pu\":%f,"
-      "\"escT\":%u,"
-      "\"bv\":%f,"
-      "\"bc\":%f,"
-      "\"bMinv\":%f,"
-      "\"bMaxv\":%f,"
-      "\"bmsT\":%u"
-      "}"
-      , dataFrame.telemetry.unixTime
-      , dataFrame.gps.fix
-      , dataFrame.gps.lat
-      , dataFrame.gps.lng
-      , dataFrame.gps.speed
-      , dataFrame.gps.last_msg
-      , dataFrame.mppt.power
-      , dataFrame.mppt.last_msg
-      , dataFrame.motor.warning
-      , dataFrame.motor.failures
-      , dataFrame.motor.battery_voltage
-      , dataFrame.motor.battery_current
-      , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
-      , dataFrame.motor.last_msg
-      , dataFrame.bms.battery_voltage
-      , dataFrame.bms.battery_current
-      , dataFrame.bms.min_cel_voltage
-      , dataFrame.bms.max_cel_voltage
-      , dataFrame.bms.last_msg
-    );  
+}
 
-    digitalWrite(LED_BUILTIN, HIGH);
-    bool success = client->publish("data", msg);
-    //for troubleshooting purposes
-    Serial.print("message sent: ");
-    Serial.println(success);
+void readAndParseCan() {
+  if (mcp2515.readMessage(&canRxMsg) == MCP2515::ERROR_OK) {
+    CAN_parseMessage(canRxMsg.can_id, canRxMsg.data, &dataFrame);
+    newData = true;
 
-    lastMsg = millis();
-    newData = false;
-  } 
-  
-  // if (dataFrame.telemetry.wifiSetupControl == 1) {
-  //   Serial.println("starting WiFi config mode");
-  //   wifi_config_mode(&status, &wifiCredentials);
-  // }
+    Serial.print(canRxMsg.can_id, HEX); // print ID
+    Serial.print(" "); 
+    Serial.print(canRxMsg.can_dlc, HEX); // print DLC
+    Serial.print(" ");
+    
+    for (int i = 0; i<canRxMsg.can_dlc; i++)  {  // print the data
+      Serial.print(canRxMsg.data[i],HEX);
+      Serial.print(" ");
+    }
+
+    Serial.println();      
+  }
 }
 
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {

@@ -9,7 +9,6 @@
 
 FDCAN_TxHeaderTypeDef MpptHeader;
 FDCAN_TxHeaderTypeDef GpsHeader;
-FDCAN_TxHeaderTypeDef EspHeader;
 
 void setCanTxHeaders() {
 	MpptHeader.Identifier 		= 0x711;
@@ -23,12 +22,6 @@ void setCanTxHeaders() {
 	GpsHeader.TxFrameType 		= FDCAN_DATA_FRAME;
 	GpsHeader.DataLength 		= FDCAN_DLC_BYTES_6;
 	GpsHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	EspHeader.Identifier 		= 0x751;
-	EspHeader.IdType 			= FDCAN_STANDARD_ID;
-	EspHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	EspHeader.DataLength 		= FDCAN_DLC_BYTES_2;
-	EspHeader.FDFormat			= FDCAN_CLASSIC_CAN;
 }
 
 void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
@@ -49,12 +42,5 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	buffer_append_uint8(TxData,    data->mppt.cs, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MpptHeader, TxData);
-
-	ind = 0;
-	buffer_append_uint8(TxData, data->telemetry.espStatus, &ind);
-	buffer_append_uint8(TxData, data->telemetry.internetConnection, &ind);
-	buffer_append_uint8(TxData, data->telemetry.wifiSetupControl, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &EspHeader, TxData);
 }
 

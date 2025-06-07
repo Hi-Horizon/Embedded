@@ -166,26 +166,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 
 
 uint8_t espParseBuf[ESP_BUF_SIZE];
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
-{
-		nextMsgId = esp_rx_buf[0];
-		//prep next message
-		switch (nextMsgId) {
-			case 1:
-				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
-				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
-				break;
-			case 2: //request for wifiCredentials
-				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
-				break;
-			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
-				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
-				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
-				data.telemetry.wifiSetupControl = 0;
-				break;
-		}
-		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-}
+// commented as this spi line is not used anymore
+//void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
+//{
+//		nextMsgId = esp_rx_buf[0];
+//		//prep next message
+//		switch (nextMsgId) {
+//			case 1:
+//				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
+//				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
+//				break;
+//			case 2: //request for wifiCredentials
+//				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
+//				break;
+//			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
+//				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
+//				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
+//				data.telemetry.wifiSetupControl = 0;
+//				break;
+//		}
+//		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+//}
 
 /* USER CODE END PFP */
 
@@ -255,8 +256,8 @@ int main(void)
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
-  //listen for command Id
-  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
+  //listen for command Id. commented as this spi line is not used anymore
+//  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
   /* USER CODE END 2 */
 

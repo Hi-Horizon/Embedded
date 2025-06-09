@@ -11,6 +11,7 @@
 #include <WIFI_setup/website/pages.h>
 #include <ArduinoJson.h>
 
+void initWiFi(DataFrame* dataFrame, espStatus* status);
 void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
 void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
 

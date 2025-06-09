@@ -13,6 +13,34 @@ String wifi_password = Wifi_PASSWORD;
 bool wifiCredentialsReceived = false;
 unsigned long timeSinceReceived = 0;
 
+
+void initWiFi(DataFrame* dataFrame, espStatus* status) {
+  //Try to connect to wifi
+  dataFrame->telemetry.wifiSetupControl = 0;
+
+  status->updateStatus(WIFI_LOGIN_TRY);
+
+  WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
+
+  Serial.println("trying to connect...");
+  //connectLoop
+  while (WiFi.status() != WL_CONNECTED) { 
+    yield();
+    // switch(WiFi.status()) {
+    //     case WL_CONNECTED:
+    //         return;
+    //     case WL_WRONG_PASSWORD:
+    //         return;
+    //     case WL_CONNECT_FAILED:
+    //         return;
+    //     default:
+    //         break;
+    // }
+  }
+
+  Serial.println("connected");
+}
+
 //**
 //* Connects to wifi given the current wifiConfig
 //**

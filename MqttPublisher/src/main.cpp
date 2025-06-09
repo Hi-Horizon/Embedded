@@ -54,7 +54,6 @@ void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
 void requestDataframe();
 
 void initCan();
-void initWiFi();
 void initTime();
 void verifyAndInitCerts();
 
@@ -77,7 +76,7 @@ void setup() {
   Serial.println();
 
   initCan();
-  initWiFi();
+  initWiFi(&dataFrame, &status);
   initTime();
   verifyAndInitCerts();
   client = initMqtt(client, bear);
@@ -167,33 +166,6 @@ void initCan() {
   mcp2515.reset();
   mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
   mcp2515.setNormalMode();
-}
-
-void initWiFi() {
-  //Try to connect to wifi
-  dataFrame.telemetry.wifiSetupControl = 0;
-
-  status.updateStatus(WIFI_LOGIN_TRY);
-
-  WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
-
-  Serial.println("trying to connect...");
-  //connectLoop
-  while (WiFi.status() != WL_CONNECTED) { 
-    yield();
-    // switch(WiFi.status()) {
-    //     case WL_CONNECTED:
-    //         return;
-    //     case WL_WRONG_PASSWORD:
-    //         return;
-    //     case WL_CONNECT_FAILED:
-    //         return;
-    //     default:
-    //         break;
-    // }
-  }
-
-  Serial.println("connected");
 }
 
 void initTime() {

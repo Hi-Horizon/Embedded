@@ -35,6 +35,7 @@ DataFrame dataFrame;
 // are present.
 WifiCredentials wifiCredentials;
 BearSSL::CertStore certStore;
+BearSSL::WiFiClientSecure *bear = new BearSSL::WiFiClientSecure();
 WiFiClientSecure espClient;
 PubSubClient * client;
 WiFiUDP ntpUDP;
@@ -61,6 +62,12 @@ void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
 void print_buf(uint8_t *buf, uint32_t len);
 void requestDataframe();
 
+void initCan();
+void initWiFi();
+void initTime();
+void verifyAndInitCerts();
+void initMqtt();
+
 void sendDataToBroker();
 void sendEspInfoToCan();
 void updateConnectionStatus();
@@ -80,74 +87,11 @@ void setup() {
   delay(500);
   Serial.println();
 
-  //CERT FILE LOADER INIT
-  LittleFS.begin();
-
-  //Try to connect to wifi
-  dataFrame.telemetry.wifiSetupControl = 0;
-
-  status.updateStatus(WIFI_LOGIN_TRY);
-
-  WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
-
-  Serial.println("trying to connect...");
-  //connectLoop
-  while (WiFi.status() != WL_CONNECTED) { 
-    yield();
-    // switch(WiFi.status()) {
-    //     case WL_CONNECTED:
-    //         return;
-    //     case WL_WRONG_PASSWORD:
-    //         return;
-    //     case WL_CONNECT_FAILED:
-    //         return;
-    //     default:
-    //         break;
-    // }
-  }
-
-  Serial.println("connected");
-
-  timeClient.begin();
-  timeClient.update();
-  dataFrame.telemetry.NTPtime = timeClient.getEpochTime();
-
-  pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
-
-  setDateTime();
-
-  //CHECK CERTS
-  status.updateStatus(TESTING_CERTS);
-  int numCerts = certStore.initCertStore(LittleFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
-  Serial.printf("Number of CA certs read: %d\n", numCerts);
-  if (numCerts == 0) {
-    Serial.printf("No certs found. Did you run certs-from-mozilla.py and upload the LittleFS directory before running?\n");
-    return; // Can't connect to anything w/o certs!
-  }
-
-  //USE CERTS
-  BearSSL::WiFiClientSecure *bear = new BearSSL::WiFiClientSecure();
-  // Integrate the cert store with this connection
-  bear->setCertStore(&certStore);
-
-  //CONNECT MQTT
-  client = new PubSubClient(*bear);
-  client->setBufferSize(3000);
-
-  const char* mqtt_server_prim = mqtt_server;
-  client->setServer(mqtt_server_prim, 8883);
-  client->setCallback(onMQTTReceive);
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  //CAN Init
-  canEspTxMsg.can_id  = 0x751;
-  canEspTxMsg.can_dlc = 3;
-
-  mcp2515.reset();
-  mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
-  mcp2515.setNormalMode();
-
-  Serial.println("setup finished");
+  initCan();
+  initWiFi();
+  initTime();
+  verifyAndInitCerts();
+  initMqtt();
 }
 
 void loop() {
@@ -281,6 +225,82 @@ void readAndParseCan() {
   }
 }
 
+void initCan() {
+  canEspTxMsg.can_id  = 0x751;
+  canEspTxMsg.can_dlc = 3;
+
+  mcp2515.reset();
+  mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
+  mcp2515.setNormalMode();
+}
+
+void initWiFi() {
+  //Try to connect to wifi
+  dataFrame.telemetry.wifiSetupControl = 0;
+
+  status.updateStatus(WIFI_LOGIN_TRY);
+
+  WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
+
+  Serial.println("trying to connect...");
+  //connectLoop
+  while (WiFi.status() != WL_CONNECTED) { 
+    yield();
+    // switch(WiFi.status()) {
+    //     case WL_CONNECTED:
+    //         return;
+    //     case WL_WRONG_PASSWORD:
+    //         return;
+    //     case WL_CONNECT_FAILED:
+    //         return;
+    //     default:
+    //         break;
+    // }
+  }
+
+  Serial.println("connected");
+}
+
+void initTime() {
+  timeClient.begin();
+  timeClient.update();
+  dataFrame.telemetry.NTPtime = timeClient.getEpochTime();
+
+  pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
+
+  setDateTime();
+}
+
+void verifyAndInitCerts() {
+  //CERT FILE LOADER INIT
+  LittleFS.begin();
+  //CHECK CERTS
+  status.updateStatus(TESTING_CERTS);
+  int numCerts = certStore.initCertStore(LittleFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
+  Serial.printf("Number of CA certs read: %d\n", numCerts);
+  if (numCerts == 0) {
+    Serial.printf("No certs found. Did you run certs-from-mozilla.py and upload the LittleFS directory before running?\n");
+    return; // Can't connect to anything w/o certs!
+  }
+
+  // USE CERTS
+  // Integrate the cert store with this connection
+  bear->setCertStore(&certStore);
+}
+
+void initMqtt() {
+  //CONNECT MQTT
+  client = new PubSubClient(*bear);
+  client->setBufferSize(3000);
+
+  const char* mqtt_server_prim = mqtt_server;
+  client->setServer(mqtt_server_prim, 8883);
+  client->setCallback(onMQTTReceive);
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  Serial.println("setup finished");
+}
+
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
   configure_WiFi(&dataFrame, status, wifiCredentials, requestDataframe);
 
@@ -326,6 +346,8 @@ uint32_t setDateTime() {
     Serial.print(".");
     now = time(nullptr);  
   }
+  Serial.println("time synced");
+
   struct tm timeinfo;
   gmtime_r(&now, &timeinfo);
   return now;

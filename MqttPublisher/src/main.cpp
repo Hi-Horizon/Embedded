@@ -17,10 +17,10 @@
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
 #include <mcp2515.h>
-#include <CANparser.h>
 #include <MQTT_API/mqtt_api.h>
 #include <NTP_API/NTP_API.h>
 #include <SSLcerts_API/SSLcerts_API.h>
+#include <CAN_API/CAN_API.h>
 
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
@@ -41,11 +41,7 @@ unsigned long stalenessTimer = 0; //staleness check timer
 uint8_t staleness = 0;
 uint8_t oldstaleness = 0;
 
-void initCan();
-
-void sendEspInfoToCan();
 void updateConnectionStatus();
-void readAndParseCan();
 
 //control
 bool newData = false;
@@ -63,7 +59,7 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
   
-  initCan();
+  initCan(&mcp2515, &canEspTxMsg);
   initWiFi(&dataFrame, &status);
   initTime(&timeClient, &dataFrame);
   verifyAndInitCerts(&certStore, bear, &status);
@@ -76,10 +72,10 @@ void loop() {
   //MQTT client routine
   client->loop();
   updateConnectionStatus();
-  readAndParseCan();
+  readAndParseCan(&mcp2515, &canRxMsg, &dataFrame, &newData);
 
   if (newData && (millis() - lastMsg > 1000L)) {
-    sendEspInfoToCan();
+    sendEspInfoToCan(&mcp2515, &canEspTxMsg, &dataFrame);
     sendDataToBroker(client, &dataFrame, &newData, &lastMsg);
   }
   
@@ -119,44 +115,6 @@ void updateConnectionStatus() {
   //   Serial.print("status is: ");
   //   Serial.println(status.getStatus());
   // }
-}
-      
-void sendEspInfoToCan() {
-  canEspTxMsg.data[0] = dataFrame.telemetry.espStatus;
-  canEspTxMsg.data[1] = dataFrame.telemetry.internetConnection;
-  canEspTxMsg.data[2] = dataFrame.telemetry.wifiSetupControl;
-
-  mcp2515.sendMessage(&canEspTxMsg);
-}
-
-void readAndParseCan() {
-  if (mcp2515.readMessage(&canRxMsg) == MCP2515::ERROR_OK) {
-    CAN_parseMessage(canRxMsg.can_id, canRxMsg.data, &dataFrame);
-    newData = true;
-          
-    Serial.print(canRxMsg.can_id, HEX); // print ID
-    Serial.print(" "); 
-    Serial.print(canRxMsg.can_dlc, HEX); // print DLC
-    Serial.print(" ");
-    
-    for (int i = 0; i<canRxMsg.can_dlc; i++)  {  // print the data
-      Serial.print(canRxMsg.data[i],HEX);
-      Serial.print(" ");
-    }
-
-    Serial.println();      
-  }
-}
-
-void initCan() {
-  Serial.println("Initializing CAN");
-
-  canEspTxMsg.can_id  = 0x751;
-  canEspTxMsg.can_dlc = 3;
-
-  mcp2515.reset();
-  mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
-  mcp2515.setNormalMode();
 }
 
 //TODO: redesign wifi_config_mode to fit current hardware

@@ -24,24 +24,21 @@
 #include <SPI.h>
 #include <mcp2515.h>
 #include <CANparser.h>
-
+#include <MQTT_API/mqtt_api.h>
 
 DataFrame dataFrame;
-
-// Update these with values suitable for your network.
+WifiCredentials wifiCredentials;
+espStatus status;
 
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
 // are present.
-WifiCredentials wifiCredentials;
 BearSSL::CertStore certStore;
 BearSSL::WiFiClientSecure *bear = new BearSSL::WiFiClientSecure();
-WiFiClientSecure espClient;
+
 PubSubClient * client;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 7200);
-
-espStatus status;
 
 unsigned long lastMsg = 0; //msg send timer
 unsigned long stalenessTimer = 0; //staleness check timer
@@ -52,23 +49,15 @@ uint8_t oldstaleness = 0;
 uint8_t spi_tx_buf[SPI_BUFFER_SIZE] = {};
 uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
 
-#define MSG_BUFFER_SIZE (3000)
-char msg[MSG_BUFFER_SIZE];
-
 uint32_t setDateTime();
-void reconnect();
-void onMQTTReceive(char* topic, byte* payload, unsigned int length);
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
-void print_buf(uint8_t *buf, uint32_t len);
 void requestDataframe();
 
 void initCan();
 void initWiFi();
 void initTime();
 void verifyAndInitCerts();
-void initMqtt();
 
-void sendDataToBroker();
 void sendEspInfoToCan();
 void updateConnectionStatus();
 void readAndParseCan();
@@ -91,7 +80,9 @@ void setup() {
   initWiFi();
   initTime();
   verifyAndInitCerts();
-  initMqtt();
+  client = initMqtt(client, bear);
+
+  Serial.println("setup finished");
 }
 
 void loop() {
@@ -100,72 +91,16 @@ void loop() {
   updateConnectionStatus();
   readAndParseCan();
 
-  if (newData && millis() - lastMsg > 1000L) {
+  if (newData && (millis() - lastMsg > 1000L)) {
     sendEspInfoToCan();
-    sendDataToBroker();
-  } 
+    sendDataToBroker(client, &dataFrame, &newData, &lastMsg);
+  }
   
   // TODO: implement the wifi setup API feature
   // if (dataFrame.telemetry.wifiSetupControl == 1) {
   //   Serial.println("starting WiFi config mode");
   //   wifi_config_mode(&status, &wifiCredentials);
   // }
-}
-
-void sendDataToBroker() {
-  // If MTU gave data as response, parse and send data with MQTT
-  digitalWrite(LED_BUILTIN, LOW);
-  snprintf (msg, MSG_BUFFER_SIZE, 
-    "{"
-    "\"mtuT\":%u,"
-    "\"fix\":%u,"
-    "\"lat\":%f,"
-    "\"lng\":%f,"
-    "\"v\":%f,"
-    "\"gpsT\":%u,"
-    "\"Pz\":%i,"
-    "\"mpptT\":%u,"
-    "\"escW\":%u,"
-    "\"escF\":%u,"
-    "\"vm\":%f,"
-    "\"mc\":%f,"
-    "\"Pu\":%f,"
-    "\"escT\":%u,"
-    "\"bv\":%f,"
-    "\"bc\":%f,"
-    "\"bMinv\":%f,"
-    "\"bMaxv\":%f,"
-    "\"bmsT\":%u"
-    "}"
-    , dataFrame.telemetry.unixTime
-    , dataFrame.gps.fix
-    , dataFrame.gps.lat
-    , dataFrame.gps.lng
-    , dataFrame.gps.speed
-    , dataFrame.gps.last_msg
-    , dataFrame.mppt.power
-    , dataFrame.mppt.last_msg
-    , dataFrame.motor.warning
-    , dataFrame.motor.failures
-    , dataFrame.motor.battery_voltage
-    , dataFrame.motor.battery_current
-    , dataFrame.motor.battery_current*dataFrame.motor.battery_voltage
-    , dataFrame.motor.last_msg
-    , dataFrame.bms.battery_voltage
-    , dataFrame.bms.battery_current
-    , dataFrame.bms.min_cel_voltage
-    , dataFrame.bms.max_cel_voltage
-    , dataFrame.bms.last_msg
-  );  
-  bool success = client->publish("data", msg);  
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  lastMsg = millis();
-  newData = false;
-
-  //debug for troubleshooting purposes
-  Serial.print("message sent: ");
-  Serial.println(success);
 }
 
 void sendEspInfoToCan() {
@@ -188,7 +123,7 @@ void updateConnectionStatus() {
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
     dataFrame.telemetry.espStatus = BROKER_CONNECTION_FAILED;  
-    reconnect();
+    mqttReconnect(client, &status);
   }
 
   // if (millis() - stalenessTimer > 3000L) {
@@ -288,19 +223,6 @@ void verifyAndInitCerts() {
   bear->setCertStore(&certStore);
 }
 
-void initMqtt() {
-  //CONNECT MQTT
-  client = new PubSubClient(*bear);
-  client->setBufferSize(3000);
-
-  const char* mqtt_server_prim = mqtt_server;
-  client->setServer(mqtt_server_prim, 8883);
-  client->setCallback(onMQTTReceive);
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  Serial.println("setup finished");
-}
-
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
   configure_WiFi(&dataFrame, status, wifiCredentials, requestDataframe);
 
@@ -352,46 +274,3 @@ uint32_t setDateTime() {
   gmtime_r(&now, &timeinfo);
   return now;
 }
-
-void reconnect() {
-  // Loop until we’re reconnected
-  status.updateStatus(CONNECTING_BROKER);
-
-  while (!client->connected()) {
-    Serial.print("Attempting MQTT connection…");
-    String clientId = "ESP8266Client - MyClient";
-    // Attempt to connect
-    // Insert your password
-    if (client->connect(clientId.c_str(), MQTT_USER, MQTT_PWD)) {
-      Serial.println("connected");
-      // Once connected, publish an announcement…
-      client->publish("testTopic", "hello world");
-      // … and resubscribe
-      client->subscribe("testTopic");
-    } 
-    else {
-      status.updateStatus(BROKER_CONNECTION_FAILED);
-      Serial.print("failed, rc = ");
-      Serial.print(client->state());
-      Serial.println(" try again in 5 seconds");
-      Serial.println(WiFi.status());
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
-
-  status.updateStatus(CONNECTED);
-}
-
-void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
-  //do nothing if MQTT data is received, yet..
-};
-
-void print_buf(uint8_t *buf, uint32_t len) {
-  for(unsigned int i=0; i < len; i++) {
-    Serial.print(buf[i]);
-    Serial.print(',');
-  }
-  Serial.println();
-}
-

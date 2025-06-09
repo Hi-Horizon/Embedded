@@ -17,14 +17,12 @@
 
 #include <DataFrame.h>
 #include <buffer.h>
-#include <SpiControl.h>
-#include <SpiConfig.h>
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
-#include <SPI.h>
 #include <mcp2515.h>
 #include <CANparser.h>
 #include <MQTT_API/mqtt_api.h>
+#include <NTP_API/NTP_API.h>
 
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
@@ -45,16 +43,7 @@ unsigned long stalenessTimer = 0; //staleness check timer
 uint8_t staleness = 0;
 uint8_t oldstaleness = 0;
 
-#define SPI_BUFFER_SIZE 128
-uint8_t spi_tx_buf[SPI_BUFFER_SIZE] = {};
-uint8_t spi_rx_buf[SPI_BUFFER_SIZE] = {};
-
-uint32_t setDateTime();
-void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials);
-void requestDataframe();
-
 void initCan();
-void initTime();
 void verifyAndInitCerts();
 
 void sendEspInfoToCan();
@@ -75,9 +64,11 @@ void setup() {
   delay(500);
   Serial.println();
 
+  pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
+  
   initCan();
   initWiFi(&dataFrame, &status);
-  initTime();
+  initTime(&timeClient, &dataFrame);
   verifyAndInitCerts();
   client = initMqtt(client, bear);
 
@@ -160,6 +151,8 @@ void readAndParseCan() {
 }
 
 void initCan() {
+  Serial.println("Initializing CAN");
+
   canEspTxMsg.can_id  = 0x751;
   canEspTxMsg.can_dlc = 3;
 
@@ -168,15 +161,6 @@ void initCan() {
   mcp2515.setNormalMode();
 }
 
-void initTime() {
-  timeClient.begin();
-  timeClient.update();
-  dataFrame.telemetry.NTPtime = timeClient.getEpochTime();
-
-  pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
-
-  setDateTime();
-}
 
 void verifyAndInitCerts() {
   //CERT FILE LOADER INIT
@@ -195,54 +179,9 @@ void verifyAndInitCerts() {
   bear->setCertStore(&certStore);
 }
 
+//TODO: redesign wifi_config_mode to fit current hardware
+void requestDataframe() {};
 void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
   configure_WiFi(&dataFrame, status, wifiCredentials, requestDataframe);
-
   connect_wifi(&dataFrame, status, wifiCredentials, requestDataframe);
-
-  //send wifiCredentials to MTU
-  spi_tx_buf[0] = 3;
-  createWiFiCredentialsFrame(wifiCredentials, spi_tx_buf + 1);
-  dataFrame.telemetry.espStatus = CONNECTED;
-  SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-  for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
-    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
-  }
-  SPI.endTransaction();
-}
-
-// callback function, requests dataFrame to be sent by MTU and parses this, 
-// sends ESP diagnostics as well
-void requestDataframe() {
-  Serial.println("Requesting data from MTU in the mean time...");
-  //Send ESP status to MTU through SPI
-  createESPInfoFrame(&dataFrame, spi_tx_buf + 1);
-  dataFrame.telemetry.espStatus = CONNECTED;
-  SPI.beginTransaction(SPISettings(16000000, MSBFIRST, SPI_MODE0));
-  spi_tx_buf[0] = 1;
-  for (unsigned long i=0; i < sizeof(spi_tx_buf); i++) {
-    spi_rx_buf[i] = SPI.transfer(spi_tx_buf[i]);
-  }
-  SPI.endTransaction();
-  parseFrame(&dataFrame, &wifiCredentials, spi_rx_buf, sizeof(spi_tx_buf));
-}
-
-uint32_t setDateTime() {
-  // You can use your own timezone, but the exact time is not used at all.
-  // Only the date is needed for validating the certificates.
-  status.updateStatus(SYNCING_NTP);
-  configTime(TZ_Europe_Amsterdam, "pool.ntp.org", "time.nist.gov");
-
-  Serial.print("Waiting for NTP time sync: ");
-  time_t now = time(nullptr);
-  while (now < 8 * 3600 * 2) {
-    delay(100);
-    Serial.print(".");
-    now = time(nullptr);  
-  }
-  Serial.println("time synced");
-
-  struct tm timeinfo;
-  gmtime_r(&now, &timeinfo);
-  return now;
 }

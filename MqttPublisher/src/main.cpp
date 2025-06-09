@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <TZ.h>
@@ -7,8 +6,6 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <CertStoreBearSSL.h>
-#include <SoftwareSerial.h>
-#include <NTPClient.h>
 #include <WiFiUdp.h>
 
 #include "wifiConfig.h"
@@ -23,6 +20,7 @@
 #include <CANparser.h>
 #include <MQTT_API/mqtt_api.h>
 #include <NTP_API/NTP_API.h>
+#include <SSLcerts_API/SSLcerts_API.h>
 
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
@@ -44,7 +42,6 @@ uint8_t staleness = 0;
 uint8_t oldstaleness = 0;
 
 void initCan();
-void verifyAndInitCerts();
 
 void sendEspInfoToCan();
 void updateConnectionStatus();
@@ -69,7 +66,7 @@ void setup() {
   initCan();
   initWiFi(&dataFrame, &status);
   initTime(&timeClient, &dataFrame);
-  verifyAndInitCerts();
+  verifyAndInitCerts(&certStore, bear, &status);
   client = initMqtt(client, bear);
 
   Serial.println("setup finished");
@@ -93,19 +90,12 @@ void loop() {
   // }
 }
 
-void sendEspInfoToCan() {
-  canEspTxMsg.data[0] = dataFrame.telemetry.espStatus;
-  canEspTxMsg.data[1] = dataFrame.telemetry.internetConnection;
-  canEspTxMsg.data[2] = dataFrame.telemetry.wifiSetupControl;
-
-  mcp2515.sendMessage(&canEspTxMsg);
-}
 
 void updateConnectionStatus() {
   //Get diagnostic info
   dataFrame.telemetry.internetConnection = WiFi.RSSI();
   dataFrame.telemetry.mqttStatus = client->state();
-
+  
   // first check if internet is still connected
   if (WiFi.status() != WL_CONNECTED) {              
     dataFrame.telemetry.espStatus = WiFi.status();
@@ -115,7 +105,7 @@ void updateConnectionStatus() {
     dataFrame.telemetry.espStatus = BROKER_CONNECTION_FAILED;  
     mqttReconnect(client, &status);
   }
-
+  
   // if (millis() - stalenessTimer > 3000L) {
   //   if (oldstaleness == staleness) {
   //     status.updateStatus(HARDWARE_FAULT);
@@ -125,17 +115,25 @@ void updateConnectionStatus() {
   //   }
   //   oldstaleness = staleness;
   //   stalenessTimer = millis();
-
+  
   //   Serial.print("status is: ");
   //   Serial.println(status.getStatus());
   // }
+}
+      
+void sendEspInfoToCan() {
+  canEspTxMsg.data[0] = dataFrame.telemetry.espStatus;
+  canEspTxMsg.data[1] = dataFrame.telemetry.internetConnection;
+  canEspTxMsg.data[2] = dataFrame.telemetry.wifiSetupControl;
+
+  mcp2515.sendMessage(&canEspTxMsg);
 }
 
 void readAndParseCan() {
   if (mcp2515.readMessage(&canRxMsg) == MCP2515::ERROR_OK) {
     CAN_parseMessage(canRxMsg.can_id, canRxMsg.data, &dataFrame);
     newData = true;
-
+          
     Serial.print(canRxMsg.can_id, HEX); // print ID
     Serial.print(" "); 
     Serial.print(canRxMsg.can_dlc, HEX); // print DLC
@@ -159,24 +157,6 @@ void initCan() {
   mcp2515.reset();
   mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
   mcp2515.setNormalMode();
-}
-
-
-void verifyAndInitCerts() {
-  //CERT FILE LOADER INIT
-  LittleFS.begin();
-  //CHECK CERTS
-  status.updateStatus(TESTING_CERTS);
-  int numCerts = certStore.initCertStore(LittleFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
-  Serial.printf("Number of CA certs read: %d\n", numCerts);
-  if (numCerts == 0) {
-    Serial.printf("No certs found. Did you run certs-from-mozilla.py and upload the LittleFS directory before running?\n");
-    return; // Can't connect to anything w/o certs!
-  }
-
-  // USE CERTS
-  // Integrate the cert store with this connection
-  bear->setCertStore(&certStore);
 }
 
 //TODO: redesign wifi_config_mode to fit current hardware

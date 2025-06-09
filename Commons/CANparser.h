@@ -12,21 +12,21 @@
 //	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
 //}
 
-uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
+static uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
 	uint16_t res = 	((uint16_t) buffer[*index + 1]) << 8 |
 					((uint16_t) buffer[*index]);
 	*index += 2;
 	return res;
 }
 
-void generate_bit_list(int len, unsigned long data, bool* return_array)
+static void generate_bit_list(int len, unsigned long data, bool* return_array)
 {
     for(int i = 0; i < len; i++) {
         return_array[i] = (bool) (((uint32_t) 1) << i & data);
     }
 }
 
-void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset) 
+static void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset) 
 {
 	int32_t ind = 0;
 	switch (id)

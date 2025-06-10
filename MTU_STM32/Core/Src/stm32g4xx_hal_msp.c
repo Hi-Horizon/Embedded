@@ -27,10 +27,6 @@ extern DMA_HandleTypeDef hdma_uart5_rx;
 
 extern DMA_HandleTypeDef hdma_usart1_rx;
 
-extern DMA_HandleTypeDef hdma_spi2_rx;
-
-extern DMA_HandleTypeDef hdma_spi2_tx;
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 

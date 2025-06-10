@@ -68,8 +68,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi3;
-DMA_HandleTypeDef hdma_spi2_rx;
-DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -106,7 +104,7 @@ WifiCredentials wifiCredentials;
 uint8_t prevRequestValue = 0;
 
 //IMU
-uint8_t IMU_txbuf[8];
+uint8_t IMU_txbuf[8] = {0x01};
 uint8_t IMU_rxbuf[8];
 
 HAL_StatusTypeDef IMU_status;
@@ -269,6 +267,9 @@ int main(void)
 /////////////////////
 while (1)
   {
+	HAL_I2C_Master_Transmit(&hi2c1, 0b1101000 << 1, IMU_txbuf, 1, 1000);
+	HAL_I2C_Master_Receive(&hi2c1, 0b1101000 << 1, IMU_rxbuf, 1, 1000);
+
 	getRTCUnixTime(&hrtc, &data);
 
 	//general tasks
@@ -732,12 +733,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
-  /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
-  /* DMA1_Channel4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
 
 }
 

@@ -34,7 +34,7 @@
 #include "MTU/CAN_API.h"
 #include "MTU/BMS_API.h"
 #include "MTU/GPS_API.h"
-#include "MTU/IMU_API.h"
+#include <MTU/IMU_parsing.h>
 #include "MTU/MPPT_API.h"
 #include "MTU/util.h"
 #include "MTU/troubleShoot.h"
@@ -265,11 +265,7 @@ int main(void)
 /////////////////////
 //****MAIN LOOP****//
 /////////////////////
-while (1)
-  {
-	HAL_I2C_Master_Transmit(&hi2c1, 0b1101000 << 1, IMU_txbuf, 1, 1000);
-	HAL_I2C_Master_Receive(&hi2c1, 0b1101000 << 1, IMU_rxbuf, 1, 1000);
-
+while (1){
 	getRTCUnixTime(&hrtc, &data);
 
 	//general tasks

@@ -77,6 +77,7 @@ DataFrame data;
 //timing
 uint32_t lastTaskPerform = 0;
 uint32_t lastMPPTread = 0;
+uint32_t lastIMUreadout = 0;
 
 //UART
 uint8_t GPS_buf[GPS_BUF_SIZE];
@@ -105,7 +106,7 @@ uint8_t prevRequestValue = 0;
 
 //IMU
 uint8_t IMU_txbuf[8] = {0x01};
-uint8_t IMU_rxbuf[8];
+uint8_t IMU_rxbuf[21];
 
 HAL_StatusTypeDef IMU_status;
 
@@ -257,6 +258,8 @@ int main(void)
   //listen for command Id. commented as this spi line is not used anymore
 //  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
+  //IMU INIT
+  initIMU(&hi2c1, IMU_rxbuf);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -267,6 +270,11 @@ int main(void)
 /////////////////////
 while (1){
 	getRTCUnixTime(&hrtc, &data);
+
+	if (HAL_GetTick() - lastIMUreadout > 10) {
+		readoutIMU(&hi2c1, IMU_rxbuf, &data.imu);
+		lastIMUreadout = HAL_GetTick();
+	}
 
 	//general tasks
 	if (HAL_GetTick() - lastTaskPerform > 1000) {

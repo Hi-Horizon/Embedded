@@ -110,6 +110,21 @@ typedef struct
         uint32_t last_msg;
 } GPS_data;
 
+typedef struct
+{
+	float accelx;
+	float accely;
+	float accelz;
+
+	float gyrox;
+	float gyroy;
+	float gyroz;
+
+	float magx;
+	float magy;
+	float magz;
+} IMU_data;
+
 typedef struct {
 	BMS_data bms;
 	Motorcontroller_data motor;
@@ -117,6 +132,7 @@ typedef struct {
 	GPS_data gps;
 	Telemetry_data telemetry;
 	Screen_data display;
+	IMU_data imu;
 } DataFrame;
 
 

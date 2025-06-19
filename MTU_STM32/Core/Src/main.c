@@ -259,7 +259,7 @@ int main(void)
 //  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
 
   //IMU INIT
-  initIMU(&hi2c1, IMU_rxbuf);
+  initIMU(&hi2c1, IMU_rxbuf, &data.imu);
   /* USER CODE END 2 */
 
   /* Infinite loop */

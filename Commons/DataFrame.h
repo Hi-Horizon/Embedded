@@ -112,6 +112,12 @@ typedef struct
 
 typedef struct
 {
+	uint8_t compass;
+
+	uint8_t pitch;
+	uint8_t yaw;
+	uint8_t roll;
+
 	float accelx;
 	float accely;
 	float accelz;
@@ -123,6 +129,9 @@ typedef struct
 	float magx;
 	float magy;
 	float magz;
+
+	float accScale;
+	float gyroScale;
 } IMU_data;
 
 typedef struct {

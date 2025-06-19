@@ -6,30 +6,49 @@
  */
 #include "MTU/IMU_parsing.h"
 
-void powerDownMag(I2C_HandleTypeDef* hi2c) {
-	writeMagRegister(hi2c, MAG_CNTL2, MAG_CNTL2_POWER_DOWN);
-}
-
-void resetMag(I2C_HandleTypeDef* hi2c) {
-	writeMagRegister(hi2c, MAG_CNTL3, MAG_CNTL3_RESET); //reset mag
-}
-
-void configMag(I2C_HandleTypeDef* hi2c) {
-	writeMagRegister(hi2c, MAG_CNTL2, MAG_CNTL2_MODE_100HZ);
-}
-
-void enableI2cMaster(I2C_HandleTypeDef* hi2c) {
-	uint8_t i2cMSTenCMD = UB0_USER_CTRL_I2C_MST_EN;
-	uint8_t i2cMSTclkCMD = UB3_I2C_MST_CTRL_CLK_400KHZ;
-
+void readoutIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
 	changeUserBank(hi2c, IMU_USER_BANK_0);
-	writeRegister(hi2c, UB0_USER_CTRL, 1, &i2cMSTenCMD);
+	readRegister(hi2c, IMU_address_xacc_h, 20, rxBuf);
 
-	changeUserBank(hi2c, IMU_USER_BANK_3);
-	writeRegister(hi2c, UB3_I2C_MST_CTRL, 1, &i2cMSTclkCMD);
+	imuData->accelx = (float) ((((int16_t)rxBuf[0]) << 8) | rxBuf[1])	* imuData->accScale;
+	imuData->accely = (float) ((((int16_t)rxBuf[2]) << 8) | rxBuf[3])	* imuData->accScale;
+	imuData->accelz = (float) ((((int16_t)rxBuf[4]) << 8) | rxBuf[5])	* imuData->accScale;
+	imuData->gyrox 	= (float) ((((int16_t)rxBuf[6]) << 8) | rxBuf[7])	* imuData->gyroScale;
+	imuData->gyroy 	= (float) ((((int16_t)rxBuf[8]) << 8) | rxBuf[9])	* imuData->gyroScale;
+	imuData->gyroz 	= (float) ((((int16_t)rxBuf[10]) << 8) | rxBuf[11])	* imuData->gyroScale;
+//	_tcounts = (((int16_t)_buffer[12]) << 8) | _buffer[13]; temperature is not needed (yet)
+	imuData->magx 	= ((((int16_t)rxBuf[15]) << 8) | rxBuf[14]) * magScale;
+	imuData->magy 	= ((((int16_t)rxBuf[17]) << 8) | rxBuf[16]) * magScale;
+	imuData->magz 	= ((((int16_t)rxBuf[19]) << 8) | rxBuf[18]) * magScale;
 }
 
-void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf) {
+void configAccel(I2C_HandleTypeDef* hi2c, uint8_t range, uint8_t bandwidth, IMU_data* imuData) {
+	changeUserBank(hi2c, IMU_USER_BANK_2);
+
+	//possible register values are 0x00 0x02 0x04 0x06
+	uint8_t accelRangeRegValue = 2 * range;
+
+	float rangeScaler = (float) (2 << range);
+	imuData->accScale = (G * rangeScaler) /IMU_RAW_SCALING;
+
+	uint8_t configVal = (accelRangeRegValue | bandwidth);
+	writeRegister(hi2c, UB2_ACCEL_CONFIG, 1, &configVal);
+}
+
+void configGyro(I2C_HandleTypeDef* hi2c, uint8_t range, uint8_t bandwidth, IMU_data* imuData) {
+  changeUserBank(hi2c, IMU_USER_BANK_2);
+
+  //possible register values are 0x00 0x02 0x04 0x06
+  uint8_t gyroConfigRegValue = 2 * range;
+
+  float rangeScaler = (float) (1 << range);
+  imuData->gyroScale = (250.0f * rangeScaler) / IMU_RAW_SCALING * piRadians;
+
+  uint8_t configVal = (gyroConfigRegValue | bandwidth);
+  writeRegister(hi2c, UB2_GYRO_CONFIG_1, 1, &configVal);
+}
+
+void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
 	resetIMU(hi2c);
 	HAL_Delay(100);
 	resetMag(hi2c);
@@ -37,6 +56,8 @@ void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf) {
 
 	IMU_pwr_normal_mode(hi2c);
 	enableAccelGyro(hi2c);
+	configAccel(hi2c, ACCEL_RANGE_16G, ACCEL_CONFIG_DLPFCFG_246HZ, imuData);
+	configGyro(hi2c, GYRO_RANGE_2000DPS, GYRO_CONFIG_1_DLPFCFG_197HZ, imuData);
 
 	enableI2cMaster(hi2c);
 	configMag(hi2c);
@@ -64,26 +85,35 @@ void IMU_pwr_normal_mode(I2C_HandleTypeDef* hi2c) {
 	writeRegister(hi2c, UB0_PWR_MGMNT_1, 1, &opCmd);
 }
 
-void readoutIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
-	changeUserBank(hi2c, IMU_USER_BANK_0);
-	readRegister(hi2c, IMU_address_xacc_h, 20, rxBuf);
-
-	imuData->accelx = (float) ((((int16_t)rxBuf[0]) << 8) | rxBuf[1]);
-	imuData->accely = (float) ((((int16_t)rxBuf[2]) << 8) | rxBuf[3]);
-	imuData->accelz = (float) ((((int16_t)rxBuf[4]) << 8) | rxBuf[5]);
-	imuData->gyrox 	= (float) ((((int16_t)rxBuf[6]) << 8) | rxBuf[7]);
-	imuData->gyroy 	= (float) ((((int16_t)rxBuf[8]) << 8) | rxBuf[9]);
-	imuData->gyroz 	= (float) ((((int16_t)rxBuf[10]) << 8) | rxBuf[11]);
-//	_tcounts = (((int16_t)_buffer[12]) << 8) | _buffer[13]; temperature is not needed (yet)
-	imuData->magx 	= (((int16_t)rxBuf[15]) << 8) | rxBuf[14];
-	imuData->magy 	= (((int16_t)rxBuf[17]) << 8) | rxBuf[16];
-	imuData->magz 	= (((int16_t)rxBuf[19]) << 8) | rxBuf[18];
-}
 
 void enableAccelGyro(I2C_HandleTypeDef* hi2c) {
 	changeUserBank(hi2c, IMU_USER_BANK_0);
 	uint8_t enableCMD = UB0_PWR_MGMNT_2_SEN_ENABLE;
 	writeRegister(hi2c, UB0_PWR_MGMNT_2, 1, &enableCMD);
+}
+
+
+void powerDownMag(I2C_HandleTypeDef* hi2c) {
+	writeMagRegister(hi2c, MAG_CNTL2, MAG_CNTL2_POWER_DOWN);
+}
+
+void resetMag(I2C_HandleTypeDef* hi2c) {
+	writeMagRegister(hi2c, MAG_CNTL3, MAG_CNTL3_RESET); //reset mag
+}
+
+void configMag(I2C_HandleTypeDef* hi2c) {
+	writeMagRegister(hi2c, MAG_CNTL2, MAG_CNTL2_MODE_100HZ);
+}
+
+void enableI2cMaster(I2C_HandleTypeDef* hi2c) {
+	uint8_t i2cMSTenCMD = UB0_USER_CTRL_I2C_MST_EN;
+	uint8_t i2cMSTclkCMD = UB3_I2C_MST_CTRL_CLK_400KHZ;
+
+	changeUserBank(hi2c, IMU_USER_BANK_0);
+	writeRegister(hi2c, UB0_USER_CTRL, 1, &i2cMSTenCMD);
+
+	changeUserBank(hi2c, IMU_USER_BANK_3);
+	writeRegister(hi2c, UB3_I2C_MST_CTRL, 1, &i2cMSTclkCMD);
 }
 
 void configMagReadout(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf) {

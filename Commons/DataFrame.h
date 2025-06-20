@@ -112,11 +112,11 @@ typedef struct
 
 typedef struct
 {
-	uint8_t compass;
+	float compass;
 
-	uint8_t pitch;
-	uint8_t yaw;
-	uint8_t roll;
+	double pitch;
+	double yaw;
+	double roll;
 
 	float accelx;
 	float accely;

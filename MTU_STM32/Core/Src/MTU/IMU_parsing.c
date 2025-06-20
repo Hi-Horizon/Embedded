@@ -10,16 +10,24 @@ void readoutIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
 	changeUserBank(hi2c, IMU_USER_BANK_0);
 	readRegister(hi2c, IMU_address_xacc_h, 20, rxBuf);
 
-	imuData->accelx = (float) ((((int16_t)rxBuf[0]) << 8) | rxBuf[1])	* imuData->accScale;
-	imuData->accely = (float) ((((int16_t)rxBuf[2]) << 8) | rxBuf[3])	* imuData->accScale;
-	imuData->accelz = (float) ((((int16_t)rxBuf[4]) << 8) | rxBuf[5])	* imuData->accScale;
-	imuData->gyrox 	= (float) ((((int16_t)rxBuf[6]) << 8) | rxBuf[7])	* imuData->gyroScale;
-	imuData->gyroy 	= (float) ((((int16_t)rxBuf[8]) << 8) | rxBuf[9])	* imuData->gyroScale;
-	imuData->gyroz 	= (float) ((((int16_t)rxBuf[10]) << 8) | rxBuf[11])	* imuData->gyroScale;
+	imuData->accelx = accScaleX*(highAndLowBytesToFloat(rxBuf[0], rxBuf[1])	* imuData->accScale) + accBiasX;
+	imuData->accely = accScaleY*(highAndLowBytesToFloat(rxBuf[2], rxBuf[3])	* imuData->accScale) + accBiasY;
+	imuData->accelz = accScaleZ*(highAndLowBytesToFloat(rxBuf[4], rxBuf[5])	* imuData->accScale) + accBiasZ;
+	imuData->gyrox 	= highAndLowBytesToFloat(rxBuf[6], rxBuf[7])	* imuData->gyroScale + 0.022;
+	imuData->gyroy 	= highAndLowBytesToFloat(rxBuf[8], rxBuf[9])	* imuData->gyroScale + 0.007;
+	imuData->gyroz 	= highAndLowBytesToFloat(rxBuf[10], rxBuf[11])	* imuData->gyroScale - 0.01;
 //	_tcounts = (((int16_t)_buffer[12]) << 8) | _buffer[13]; temperature is not needed (yet)
-	imuData->magx 	= ((((int16_t)rxBuf[15]) << 8) | rxBuf[14]) * magScale;
-	imuData->magy 	= ((((int16_t)rxBuf[17]) << 8) | rxBuf[16]) * magScale;
-	imuData->magz 	= ((((int16_t)rxBuf[19]) << 8) | rxBuf[18]) * magScale;
+	imuData->magx 	= highAndLowBytesToFloat(rxBuf[14], rxBuf[15]) * magScale;
+	imuData->magy 	= highAndLowBytesToFloat(rxBuf[16], rxBuf[17]) * -magScale;
+	imuData->magz 	= highAndLowBytesToFloat(rxBuf[18], rxBuf[19]) * -magScale;
+
+	calculatePitchRollYaw(imuData);
+	calculateCompassDirection(imuData);
+}
+
+float highAndLowBytesToFloat(uint8_t high, uint8_t low) {
+	int16_t bytesCombined = (((int16_t) high) << 8) | low;
+	return (float) bytesCombined;
 }
 
 void configAccel(I2C_HandleTypeDef* hi2c, uint8_t range, uint8_t bandwidth, IMU_data* imuData) {
@@ -49,6 +57,10 @@ void configGyro(I2C_HandleTypeDef* hi2c, uint8_t range, uint8_t bandwidth, IMU_d
 }
 
 void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
+	IMU_pwr_normal_mode(hi2c);
+	enableI2cMaster(hi2c);
+	powerDownMag(hi2c);
+
 	resetIMU(hi2c);
 	HAL_Delay(100);
 	resetMag(hi2c);
@@ -60,6 +72,7 @@ void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData) {
 	configGyro(hi2c, GYRO_RANGE_2000DPS, GYRO_CONFIG_1_DLPFCFG_197HZ, imuData);
 
 	enableI2cMaster(hi2c);
+	readMagRegister(hi2c, 0x00, 2, rxBuf);
 	configMag(hi2c);
 
 	configMagReadout(hi2c, rxBuf);
@@ -134,6 +147,7 @@ void writeMagRegister(I2C_HandleTypeDef* hi2c, uint8_t subAddress, uint8_t data)
 	writeRegister(hi2c, UB3_I2C_SLV0_REG, 1, &subAddress);
 	// store the data for write
 	writeRegister(hi2c, UB3_I2C_SLV0_DO, 1, &data);
+	HAL_Delay(100);
 	// enable I2C and send 1 byte
 	writeRegister(hi2c, UB3_I2C_SLV0_CTRL, 1, &i2cEnableCmd);
 }

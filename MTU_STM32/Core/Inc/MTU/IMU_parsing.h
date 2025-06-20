@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "DataFrame.h"
+#include "IMU_calculations.h"
 
 void readoutIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData);
 void initIMU(I2C_HandleTypeDef* hi2c, uint8_t* rxBuf, IMU_data* imuData);
@@ -35,6 +36,17 @@ void writeMagRegister(I2C_HandleTypeDef* hi2c, uint8_t subAddress, uint8_t data)
 void readMagRegister(I2C_HandleTypeDef* hi2c, uint8_t subRegAddr, uint8_t rxLen, uint8_t* rxBuf);
 void writeRegister(I2C_HandleTypeDef* hi2c, uint8_t regAddr, uint8_t txLen, uint8_t* txBuf);
 void readRegister(I2C_HandleTypeDef* hi2c, uint8_t regAddr, uint8_t rxLen, uint8_t* rxBuf);
+
+float highAndLowBytesToFloat(uint8_t high, uint8_t low);
+
+#define accBiasX  0.125f
+#define accScaleX 1.004f
+
+#define accBiasY  0.162f
+#define accScaleY 1.008f
+
+#define accBiasZ -0.002f
+#define accScaleZ 0.992f
 
 //i2c address of the ICM-20948
 #define IMU_address 0b1101000 << 1

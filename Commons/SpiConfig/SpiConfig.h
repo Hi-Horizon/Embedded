@@ -15,12 +15,7 @@ extern "C" {
 #define RESPONSE_SIZE 14
 #define MSG_MAX_SIZE = 32
 
-typedef struct {
-    char ssid[128];
-    uint8_t ssidLength;
-    char password[128];
-    uint8_t passwordLength;
-} WifiCredentials;
+
 
 bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len);
 

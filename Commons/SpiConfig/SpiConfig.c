@@ -33,7 +33,7 @@ void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 1;
 
     dataFrame->telemetry.unixTime           = buffer_get_uint32(buf, &index);
-    dataFrame->telemetry.wifiSetupControl   = buffer_get_uint8(buf, &index);
+    dataFrame->esp.wifiSetupControl   = buffer_get_uint8(buf, &index);
 
     dataFrame->gps.fix              = buffer_get_uint8(buf, &index);
     dataFrame->gps.lat              = buffer_get_float32(buf, 100, &index);
@@ -61,9 +61,9 @@ void espInfoFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 1;
 
     dataFrame->telemetry.NTPtime = buffer_get_uint32(buf, &index);
-    dataFrame->telemetry.espStatus = buffer_get_uint8(buf, &index);
-    dataFrame->telemetry.mqttStatus = buffer_get_uint8(buf, &index);
-    dataFrame->telemetry.internetConnection = buffer_get_uint8(buf, &index);
+    dataFrame->esp.status = buffer_get_uint8(buf, &index);
+    dataFrame->esp.mqttStatus = buffer_get_uint8(buf, &index);
+    dataFrame->esp.internetConnection = buffer_get_uint8(buf, &index);
 }
 
 void wifiCredentialsFromPayload(WifiCredentials *wifiCredentials, uint8_t *buf) {
@@ -190,7 +190,7 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
 
     append_uint8_with_stuffing(buf, 1, &index);
     append_uint32_with_stuffing(buf, dataFrame->telemetry.unixTime, &index);
-    append_uint8_with_stuffing(buf, dataFrame->telemetry.wifiSetupControl, &index);
+    append_uint8_with_stuffing(buf, dataFrame->esp.wifiSetupControl, &index);
     
     append_uint8_with_stuffing(buf, dataFrame->gps.fix, &index);
     append_float32_with_stuffing(buf, dataFrame->gps.lat, 100, &index);
@@ -224,9 +224,9 @@ void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf) {
 
     append_uint8_with_stuffing(buf, 3, &index);
     append_uint32_with_stuffing(buf, dataFrame->telemetry.NTPtime, &index);
-    append_uint8_with_stuffing(buf, dataFrame->telemetry.espStatus, &index);
-    append_uint8_with_stuffing(buf, dataFrame->telemetry.mqttStatus, &index);
-    append_uint8_with_stuffing(buf, dataFrame->telemetry.internetConnection, &index);
+    append_uint8_with_stuffing(buf, dataFrame->esp.status, &index);
+    append_uint8_with_stuffing(buf, dataFrame->esp.mqttStatus, &index);
+    append_uint8_with_stuffing(buf, dataFrame->esp.internetConnection, &index);
     append_uint8_with_stuffing(buf, calculateChecksumWithStuffing(buf, index), &index);
 
     buffer_append_uint8(buf, SpiTrailerByte, &index);

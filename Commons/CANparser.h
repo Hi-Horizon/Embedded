@@ -206,9 +206,9 @@ static void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dat
 		case 0x751:
 			{
 				ind = 0;
-				dataset->telemetry.espStatus = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.internetConnection = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
+				dataset->esp.status = buffer_get_uint8(payload, &ind);
+				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
+				dataset->esp.wifiSetupControl = buffer_get_uint8(payload, &ind);
 				break;
 			}
 

@@ -19,6 +19,7 @@ FRESULT writeDataHeaderToSD();
 FRESULT writeDataFrameToSD(DataFrame* data);
 FRESULT saveWifiCredentials(WifiCredentials *wc);
 FRESULT readWifiCredentials(WifiCredentials *wc);
+FRESULT readWifiCredentialsRaw(uint8_t *buf, uint8_t *bytesRead);
 
 
 #endif /* INC_HHRTINC_SD_HHRT_H_ */

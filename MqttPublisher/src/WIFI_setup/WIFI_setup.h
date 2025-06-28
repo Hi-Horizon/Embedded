@@ -10,9 +10,12 @@
 #include <DNSServer.h>
 #include <WIFI_setup/website/pages.h>
 #include <ArduinoJson.h>
+#include "mcp2515.h"
+#include "CAN_API/CAN_API.h"
 
 void initWiFi(DataFrame* dataFrame, espStatus* status);
 void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
 void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
+void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials);
 
 #endif

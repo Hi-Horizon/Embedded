@@ -82,14 +82,6 @@ typedef struct
         uint32_t localRuntime;
         
         uint8_t SD_error;
-        
-        // 0 = Normal operation
-        // 1 = WiFi Setup mode
-        uint8_t wifiSetupControl; 
-        
-        uint8_t espStatus;
-        uint8_t mqttStatus;
-        uint8_t internetConnection;
         float Pmotor;
         //kan weg
         uint32_t strategyRuntime;
@@ -110,6 +102,17 @@ typedef struct
         uint32_t last_msg;
 } GPS_data;
 
+typedef struct 
+{
+        uint8_t status;
+        uint8_t mqttStatus;
+        uint8_t internetConnection;
+
+        // 0 = Normal operation
+        // 1 = WiFi Setup mode
+        uint8_t wifiSetupControl; 
+} ESP_data;
+
 typedef struct {
 	BMS_data bms;
 	Motorcontroller_data motor;
@@ -117,7 +120,16 @@ typedef struct {
 	GPS_data gps;
 	Telemetry_data telemetry;
 	Screen_data display;
+        ESP_data esp;
 } DataFrame;
+
+
+typedef struct {
+    char ssid[128];
+    uint8_t ssidLength;
+    char password[128];
+    uint8_t passwordLength;
+} WifiCredentials;
 
 
 #endif /* INC_DATASET_HHRT__H_ */

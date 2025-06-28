@@ -184,7 +184,7 @@ void screen1() {
 		uint8_overflowCheck(data.gps.antenna, (uint8_t) 9),
 		uint8_overflowCheck(data.mppt.cs, (uint8_t) 9),
 		uint8_overflowCheck(data.mppt.error, (uint8_t) 999),
-		uint8_overflowCheck(data.telemetry.espStatus, (uint8_t) 9),
+		uint8_overflowCheck(data.esp.status, (uint8_t) 9),
 		seconds
 	);
 	for (int i = 0; i < screenCharSize; i++) {

@@ -16,7 +16,7 @@ unsigned long timeSinceReceived = 0;
 
 void initWiFi(DataFrame* dataFrame, espStatus* status) {
   //Try to connect to wifi
-  dataFrame->telemetry.wifiSetupControl = 0;
+  dataFrame->esp.wifiSetupControl = 0;
 
   status->updateStatus(WIFI_LOGIN_TRY);
 
@@ -41,6 +41,20 @@ void initWiFi(DataFrame* dataFrame, espStatus* status) {
   Serial.println("connected");
 }
 
+void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials) {
+  struct can_frame credentialsRequestMsg;
+  credentialsRequestMsg.can_id  = 0x752;
+  credentialsRequestMsg.can_dlc = 0;
+  //send request to network for the credentials
+  Serial.println("sending request for wifiCredentials");
+  mcp2515->sendMessage(&credentialsRequestMsg);
+  Serial.println("Sent, listening for response");
+  Serial.println(listenForWiFiCredentialsCan(mcp2515, rxFrame, wifiCredentials));
+  
+  Serial.println(wifiCredentials->ssid);
+  Serial.println(wifiCredentials->password);
+}
+
 //**
 //* Connects to wifi given the current wifiConfig
 //**
@@ -57,17 +71,17 @@ void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
   Serial.println("trying to connect...");
 
   unsigned long lastIdlePerform = 0;
-  uint8_t prevWifiSetupControl = data->telemetry.wifiSetupControl;
+  uint8_t prevWifiSetupControl = data->esp.wifiSetupControl;
   //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
     if (millis() - lastIdlePerform > 1000) {
       idleFn();   
-      if (data->telemetry.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
+      if (data->esp.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
         Serial.println("stopping wifi search");
         return; //stop searching if WiFiConfigmode is enabled
       }
-      prevWifiSetupControl = data->telemetry.wifiSetupControl;
+      prevWifiSetupControl = data->esp.wifiSetupControl;
       lastIdlePerform = millis();
     }
     
@@ -139,8 +153,8 @@ void startServer(DataFrame *data, WifiCredentials *wc, std::function<void ()> id
     while (!done) {
         if (millis() - lastIdlePerform > 1000) {
           idleFn();
-          //if control mode is turned of, shut down server and return immediately
-          if (data->telemetry.wifiSetupControl == 0) {
+          //if control mode is turned off, shut down server and return immediately
+          if (data->esp.wifiSetupControl == 0) {
             initServer.stop();
             return;
           }

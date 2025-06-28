@@ -60,6 +60,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
   
   initCan(&mcp2515, &canEspTxMsg);
+  getWiFiCredentialsFromCan(&mcp2515, &canRxMsg, &wifiCredentials);
   initWiFi(&dataFrame, &status);
   initTime(&timeClient, &dataFrame);
   verifyAndInitCerts(&certStore, bear, &status);
@@ -89,16 +90,16 @@ void loop() {
 
 void updateConnectionStatus() {
   //Get diagnostic info
-  dataFrame.telemetry.internetConnection = WiFi.RSSI();
-  dataFrame.telemetry.mqttStatus = client->state();
+  dataFrame.esp.internetConnection = WiFi.RSSI();
+  dataFrame.esp.mqttStatus = client->state();
   
   // first check if internet is still connected
   if (WiFi.status() != WL_CONNECTED) {              
-    dataFrame.telemetry.espStatus = WiFi.status();
+    dataFrame.esp.status = WiFi.status();
   }
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
-    dataFrame.telemetry.espStatus = BROKER_CONNECTION_FAILED;  
+    dataFrame.esp.status = BROKER_CONNECTION_FAILED;  
     mqttReconnect(client, &status);
   }
   

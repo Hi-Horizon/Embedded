@@ -24,7 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "SpiConfig/SpiConfig.h"
 #include "MTU/ESP_SPI.h"
-#include "CANparser.h"
+#include "CANparser/CANparser.h"
 
 #include "fatfs_sd.h"
 #include "string.h"

@@ -23,7 +23,9 @@ void sendEspInfoToCan(MCP2515* mcp2515, can_frame* canEspTxMsg, DataFrame* dataF
 void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf) {
   //get ssid
   for (int i = 0; i < 128; i++) {
-    Serial.print(buf[i]);
+    // debugging purposes
+    // char c = buf[i];
+    // Serial.print(c);
     if (buf[i] == '\n') break; //ssid finished
     wifiCredentials->ssid[i] = buf[i];
     wifiCredentials->ssidLength++;
@@ -32,7 +34,9 @@ void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf)
 
   //get password
   for (int i = 0; i < 128; i++) {
-    Serial.print(buf[i]);
+    // debugging purposes
+    // char c = buf[i];
+    // Serial.print(c);
     if (buf[i] == (char) 0x0) break; //password finished
     wifiCredentials->password[i] = buf[i];
     wifiCredentials->passwordLength++;
@@ -48,8 +52,9 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
   while (!transferComplete) {
     yield();
     if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
-      Serial.println(canRxMsg->can_id);
-      Serial.println(canRxMsg->data[0]);
+      // debugging purposes
+      // Serial.println(canRxMsg->can_id, HEX);
+      // Serial.println(canRxMsg->data[0]);
       if (canRxMsg->can_id == 0x753) { // canBus response id
         // if msg is completely empty, transfer is complete
         transferComplete=true;
@@ -60,7 +65,7 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
         if (transferComplete) break;
 
         if (seq != canRxMsg->data[0]) return 0; // out of sequence, this should retrigger a new request
-        memcpy(buf, canRxMsg->data + 1, 7); // cpy characters from data into buf
+        memcpy(buf + 7*canRxMsg->data[0], canRxMsg->data + 1, 7); // cpy characters from data into buf
         seq++;
       }
       //TODO: add WiFi config mode request check 

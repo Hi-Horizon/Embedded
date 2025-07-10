@@ -11,6 +11,7 @@
 #include "stm32g4xx_hal.h"
 #include <buffer/buffer.h>
 #include <stdint.h>
+#include <string.h>
 #include <DataFrame.h>
 
 

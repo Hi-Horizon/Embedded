@@ -24,7 +24,7 @@
 #include "stdbool.h"
 #include "i2c-lcd.h"
 #include <DataFrame.h>
-#include <CANparser.h>
+#include <CANparser/CANparser.h>
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */

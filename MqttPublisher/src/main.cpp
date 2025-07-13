@@ -102,7 +102,7 @@ void updateConnectionStatus() {
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
     dataFrame.esp.status = BROKER_CONNECTION_FAILED;  
-    mqttReconnect(client, &status);
+    mqttReconnect(client, &status, wifiConfigModeListener);
   }
   
   // if (millis() - stalenessTimer > 3000L) {

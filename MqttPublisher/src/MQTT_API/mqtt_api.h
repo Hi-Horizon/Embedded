@@ -12,7 +12,7 @@
 
 void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataFlag, unsigned long* lastMsg);
 PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear);
-void mqttReconnect(PubSubClient* client, espStatus* status);
+void mqttReconnect(PubSubClient* client, espStatus* status, std::function<void ()> idleFn);
 void onMQTTReceive(char* topic, byte* payload, unsigned int length);
 
 #endif

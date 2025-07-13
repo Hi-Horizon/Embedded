@@ -23,10 +23,11 @@ void sendEspInfoToCan(MCP2515* mcp2515, can_frame* canEspTxMsg, DataFrame* dataF
 void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf) {
   //get ssid
   for (int i = 0; i < 128; i++) {
-    // debugging purposes
-    // char c = buf[i];
-    // Serial.print(c);
     if (buf[i] == '\n') break; //ssid finished
+
+    // debugging purposes
+    char c = buf[i];
+    Serial.print(c);
     wifiCredentials->ssid[i] = buf[i];
     wifiCredentials->ssidLength++;
   }
@@ -34,10 +35,11 @@ void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf)
 
   //get password
   for (int i = 0; i < 128; i++) {
+    if (buf[i] == (char) 0x0 || buf[i] == '\n') break; //password finished
+
     // debugging purposes
-    // char c = buf[i];
-    // Serial.print(c);
-    if (buf[i] == (char) 0x0) break; //password finished
+    char c = buf[i];
+    Serial.print(c);
     wifiCredentials->password[i] = buf[i];
     wifiCredentials->passwordLength++;
   }
@@ -78,6 +80,10 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
 
 void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, bool* newDataFlag) {
   if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
+    if (canRxMsg->can_id == 0x754) {
+      dataFrame->esp.wifiSetupControl = !dataFrame->esp.wifiSetupControl;
+      return;
+    }
     CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame);
     *newDataFlag = true;
           
@@ -92,5 +98,14 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
     }
 
     Serial.println();      
+  }
+}
+
+void canListenForWifiConfigToggle(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame) {
+  if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
+    if (canRxMsg->can_id == 0x754) {
+      dataFrame->esp.wifiSetupControl = !dataFrame->esp.wifiSetupControl;
+      return;
+    }
   }
 }

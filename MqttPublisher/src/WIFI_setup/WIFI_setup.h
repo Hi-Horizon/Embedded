@@ -14,8 +14,8 @@
 #include "CAN_API/CAN_API.h"
 
 void initWiFi(DataFrame* dataFrame, espStatus* status);
-void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
-void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void ()> idleFn);
+bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void()> idleFn);
+void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void()> idleFn);
 void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials);
 
 #endif

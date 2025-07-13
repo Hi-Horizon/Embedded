@@ -10,6 +10,7 @@
 FDCAN_TxHeaderTypeDef MpptHeader;
 FDCAN_TxHeaderTypeDef GpsHeader;
 FDCAN_TxHeaderTypeDef WiFiCredentialsHeader;
+FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
 
 void setCanTxHeaders() {
 	MpptHeader.Identifier 		= 0x711;
@@ -29,6 +30,12 @@ void setCanTxHeaders() {
 	WiFiCredentialsHeader.TxFrameType 		= FDCAN_DATA_FRAME;
 	WiFiCredentialsHeader.DataLength 		= FDCAN_DLC_BYTES_8;
 	WiFiCredentialsHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+
+	WiFiConfigModeControl.Identifier 		= 0x754;
+	WiFiConfigModeControl.IdType 			= FDCAN_STANDARD_ID;
+	WiFiConfigModeControl.TxFrameType 		= FDCAN_DATA_FRAME;
+	WiFiConfigModeControl.DataLength 		= FDCAN_DLC_BYTES_8;
+	WiFiConfigModeControl.FDFormat			= FDCAN_CLASSIC_CAN;
 }
 
 void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
@@ -58,6 +65,7 @@ void sendWiFiCredentialsBuf(FDCAN_HandleTypeDef* hfdcan1, uint8_t* buf, uint8_t 
 	while (index <= length - 7) {
 		txBuf[0] = seq;
 		memcpy(txBuf+1, buf, 7);
+		HAL_Delay(50);
 		HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiCredentialsHeader, txBuf);
 		buf = buf + 7;
 		index += 7;
@@ -69,10 +77,16 @@ void sendWiFiCredentialsBuf(FDCAN_HandleTypeDef* hfdcan1, uint8_t* buf, uint8_t 
 
 		txBuf[0] = seq;
 		memcpy(txBuf+1, buf, remainder);
+		HAL_Delay(50);
 		HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiCredentialsHeader, txBuf);
 	}
 	memset(txBuf, 0, 8);
 	HAL_Delay(50);
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiCredentialsHeader, txBuf);
+}
+
+void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1) {
+	uint8_t txBuf[8] = {};
+	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiConfigModeControl, txBuf);
 }
 

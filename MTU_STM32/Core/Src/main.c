@@ -99,6 +99,7 @@ uint32_t              TxMailbox;
 bool sendWiFiCredentialsFlag = false;
 bool EspWaitForCommand = true;
 bool espValidConn = true;
+bool toggleWifiConfig = 0;
 uint8_t nextMsgId = 0;
 uint8_t esp_tx_buf[ESP_BUF_SIZE];
 uint8_t esp_rx_buf[ESP_BUF_SIZE];
@@ -325,9 +326,13 @@ while (1)
 
     /* USER CODE BEGIN 3 */
 	// TROUBLESHOOT CODE
+	if (toggleWifiConfig) {
+		toggleWifiConfigMode(&hfdcan1);
+		toggleWifiConfig = 0;
+	}
 
 	// Uncomment this for dummy data generation
-//	 fillRandomData(&data);
+	// fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

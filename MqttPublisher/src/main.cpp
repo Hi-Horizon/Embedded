@@ -120,6 +120,7 @@ void updateConnectionStatus() {
   // }
 }
 
+//used for init functions
 void wifiConfigModeListener() {
   canListenForWifiConfigToggle(&mcp2515, &canRxMsg, &dataFrame);
   //needs to be here as other function cant call WiFi_Config_mode();
@@ -128,6 +129,7 @@ void wifiConfigModeListener() {
   }
 }
 
+//used in the wifi_config_mode function to avoid recursion
 void listenForWifiConfigToggle() {
   canListenForWifiConfigToggle(&mcp2515, &canRxMsg, &dataFrame);
 };

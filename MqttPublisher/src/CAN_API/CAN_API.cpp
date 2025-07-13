@@ -27,12 +27,16 @@ void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf)
   //get ssid
   for (int i = 0; i < 128; i++) {
     if (buf[i] == '\n') break; //ssid finished
+    wifiCredentials->ssid[i] = buf[i];
+    wifiCredentials->ssidLength++;
   }
   buf = buf + wifiCredentials->ssidLength + 1;
 
   //get password
   for (int i = 0; i < 128; i++) {
     if (buf[i] == (char) 0x0 || buf[i] == '\n') break; //password finished
+    wifiCredentials->password[i] = buf[i];
+    wifiCredentials->passwordLength++;
   }
 }
 

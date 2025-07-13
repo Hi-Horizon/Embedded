@@ -1,10 +1,13 @@
 #include "CAN_API.h"
 
-void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg) {
+void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg) {
   Serial.println("Initializing CAN");
 
   canEspTxMsg->can_id  = 0x751;
   canEspTxMsg->can_dlc = 3;
+
+  canWifiCredentialsTxMsg->can_id = 0x753;
+  canWifiCredentialsTxMsg->can_dlc = CAN_MAX_DLEN;
 
   mcp2515->reset();
   mcp2515->setBitrate(CAN_125KBPS, MCP_8MHZ);
@@ -24,26 +27,13 @@ void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf)
   //get ssid
   for (int i = 0; i < 128; i++) {
     if (buf[i] == '\n') break; //ssid finished
-
-    // debugging purposes
-    char c = buf[i];
-    Serial.print(c);
-    wifiCredentials->ssid[i] = buf[i];
-    wifiCredentials->ssidLength++;
   }
   buf = buf + wifiCredentials->ssidLength + 1;
 
   //get password
   for (int i = 0; i < 128; i++) {
     if (buf[i] == (char) 0x0 || buf[i] == '\n') break; //password finished
-
-    // debugging purposes
-    char c = buf[i];
-    Serial.print(c);
-    wifiCredentials->password[i] = buf[i];
-    wifiCredentials->passwordLength++;
   }
-  Serial.println();
 }
 
 uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiCredentials *wifiCredentials) {

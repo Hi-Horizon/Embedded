@@ -51,6 +51,7 @@ bool newData = false;
 
 struct can_frame canRxMsg;
 struct can_frame canEspTxMsg;
+struct can_frame canWifiCredentialsTxMsg;
 MCP2515 mcp2515(D8);
 
 void setup() {
@@ -62,7 +63,7 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
   
-  initCan(&mcp2515, &canEspTxMsg);
+  initCan(&mcp2515, &canEspTxMsg, &canWifiCredentialsTxMsg);
   getWiFiCredentialsFromCan(&mcp2515, &canRxMsg, &wifiCredentials);
   connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
   initTime(&timeClient, &dataFrame, wifiConfigModeListener);
@@ -141,8 +142,8 @@ void wifi_config_mode() {
   //always perform this, only difference being old WiFi connection or new
   if (dataFrame.esp.wifiSetupControl == 1) {
     if (connect_wifi(&dataFrame, &status, &newWifiCredentials, listenForWifiConfigToggle)) {
-      // Connected, write to network, cancel not possible anymore
-      // writeSD()
+      // Connected, write to SD, cancel not possible anymore
+      sendWiFICredentialsOverCan(&mcp2515, &canWifiCredentialsTxMsg, &newWifiCredentials);
 
       // copy new info to current info
       memcpy(wifiCredentials.ssid, newWifiCredentials.ssid, 128);

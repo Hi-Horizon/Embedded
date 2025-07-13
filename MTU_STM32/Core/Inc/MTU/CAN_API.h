@@ -19,4 +19,5 @@ void setCanTxHeaders();
 void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data);
 void sendWiFiCredentialsBuf(FDCAN_HandleTypeDef* hfdcan1, uint8_t* buf, uint8_t length);
 void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1);
+uint8_t listenForWiFiCredentialsCan(uint32_t id, uint8_t* rxData, uint8_t* sdBuf, uint32_t* bufLength, bool* msgCompleteFlag, uint8_t* seq);
 #endif /* INC_MTU_CAN_API_H_ */

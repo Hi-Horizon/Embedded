@@ -55,6 +55,45 @@ void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredent
   Serial.println(wifiCredentials->password);
 }
 
+void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCredentials *wifiCredentials) {
+  uint8_t buf[258];
+  uint32_t ind = 0;
+
+  //TODO: put in wificredentials library with name Like convertToBuf;
+  memcpy(buf, wifiCredentials->ssid, wifiCredentials->ssidLength);
+  ind = ind + wifiCredentials->ssidLength;
+  buf[ind] = '\n';
+  ind = ind + 1;
+  memcpy(buf + ind, wifiCredentials->password, wifiCredentials->passwordLength);
+  ind = ind + wifiCredentials->passwordLength;
+
+  uint8_t* bufPtr = buf;
+  uint32_t length = ind;
+	uint8_t seq 	= 0;
+	ind	= 0;
+
+	while (ind <= length - 7) {
+		txFrame->data[0] = seq;
+		memcpy(txFrame->data +1, bufPtr, 7);
+		delay(50);
+		mcp2515->sendMessage(txFrame);
+		bufPtr = bufPtr + 7;
+		ind += 7;
+		seq++;
+	}
+	uint8_t remainder = length % 7;
+	if (remainder != 0) {
+		memset(txFrame->data, 0, 8);
+		txFrame->data[0] = seq;
+		memcpy(txFrame->data+1, bufPtr, remainder);
+		delay(50);
+		mcp2515->sendMessage(txFrame);
+	}
+	memset(txFrame->data, 0, 8);
+	delay(50);
+	mcp2515->sendMessage(txFrame);
+}
+
 //**
 //* Connects to wifi given the current wifiConfig
 //**

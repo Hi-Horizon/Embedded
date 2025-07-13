@@ -90,3 +90,21 @@ void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1) {
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiConfigModeControl, txBuf);
 }
 
+uint8_t listenForWiFiCredentialsCan(uint32_t id, uint8_t* rxData, uint8_t* sdBuf, uint32_t* bufLength, bool* msgCompleteFlag, uint8_t* seq) {
+	if (id == 0x753) { // canBus response id
+		// if msg is completely empty, transfer is complete
+		*msgCompleteFlag = true;
+		for (int i = 0; i < 8; i++ ) {
+		  if (rxData[i] == 0) continue;
+		  else *msgCompleteFlag = false;
+		}
+		if (*msgCompleteFlag) return 1; // transfer complete
+
+		if (*seq != rxData[0]) return 0; // out of sequence, this should retrigger a new request
+
+		memcpy(sdBuf + 7*rxData[0], rxData + 1, 7); // cpy characters from data into buf
+		*seq = *seq + 1;
+	}
+	return 1;
+}
+

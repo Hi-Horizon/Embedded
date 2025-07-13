@@ -185,9 +185,9 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x751:
 			{
 				ind = 0;
-				dataset->telemetry.espStatus = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.internetConnection = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
+				dataset->esp.status = buffer_get_uint8(payload, &ind);
+				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
+				dataset->esp.wifiSetupControl = buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -222,4 +222,3 @@ uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
 	*index += 2;
 	return res;
 }
-

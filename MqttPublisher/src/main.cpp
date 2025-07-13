@@ -24,6 +24,7 @@
 
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
+WifiCredentials newWifiCredentials;
 espStatus status;
 
 // A single, global CertStore which can be used by all connections.
@@ -42,12 +43,15 @@ uint8_t staleness = 0;
 uint8_t oldstaleness = 0;
 
 void updateConnectionStatus();
+void wifi_config_mode();
+void wifiConfigModeListener();
 
 //control
 bool newData = false;
 
 struct can_frame canRxMsg;
 struct can_frame canEspTxMsg;
+struct can_frame canWifiCredentialsTxMsg;
 MCP2515 mcp2515(D8);
 
 void setup() {
@@ -59,9 +63,10 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT); // Initialize the LED_BUILTIN pin as an output
   
-  initCan(&mcp2515, &canEspTxMsg);
-  initWiFi(&dataFrame, &status);
-  initTime(&timeClient, &dataFrame);
+  initCan(&mcp2515, &canEspTxMsg, &canWifiCredentialsTxMsg);
+  getWiFiCredentialsFromCan(&mcp2515, &canRxMsg, &wifiCredentials);
+  connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
+  initTime(&timeClient, &dataFrame, wifiConfigModeListener);
   verifyAndInitCerts(&certStore, bear, &status);
   client = initMqtt(client, bear);
 
@@ -79,27 +84,26 @@ void loop() {
     sendDataToBroker(client, &dataFrame, &newData, &lastMsg);
   }
   
-  // TODO: implement the wifi setup API feature
-  // if (dataFrame.telemetry.wifiSetupControl == 1) {
-  //   Serial.println("starting WiFi config mode");
-  //   wifi_config_mode(&status, &wifiCredentials);
-  // }
+  if (dataFrame.esp.wifiSetupControl == 1) {
+    wifi_config_mode();
+  }
 }
 
 
 void updateConnectionStatus() {
   //Get diagnostic info
-  dataFrame.telemetry.internetConnection = WiFi.RSSI();
-  dataFrame.telemetry.mqttStatus = client->state();
+  dataFrame.esp.internetConnection = WiFi.RSSI();
+  dataFrame.esp.mqttStatus = client->state();
   
-  // first check if internet is still connected
+  // first check if internet is still connected. if not, reconnect
   if (WiFi.status() != WL_CONNECTED) {              
-    dataFrame.telemetry.espStatus = WiFi.status();
+    dataFrame.esp.status = WiFi.status();
+    connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
   }
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
-    dataFrame.telemetry.espStatus = BROKER_CONNECTION_FAILED;  
-    mqttReconnect(client, &status);
+    dataFrame.esp.status = BROKER_CONNECTION_FAILED;  
+    mqttReconnect(client, &status, wifiConfigModeListener);
   }
   
   // if (millis() - stalenessTimer > 3000L) {
@@ -117,9 +121,42 @@ void updateConnectionStatus() {
   // }
 }
 
-//TODO: redesign wifi_config_mode to fit current hardware
-void requestDataframe() {};
-void wifi_config_mode(espStatus* status, WifiCredentials *wifiCredentials) {
-  configure_WiFi(&dataFrame, status, wifiCredentials, requestDataframe);
-  connect_wifi(&dataFrame, status, wifiCredentials, requestDataframe);
+//used for init functions
+void wifiConfigModeListener() {
+  canListenForWifiConfigToggle(&mcp2515, &canRxMsg, &dataFrame);
+  //needs to be here as other function cant call WiFi_Config_mode();
+  if (dataFrame.esp.wifiSetupControl == 1) {
+    wifi_config_mode();
+  }
 }
+
+//used in the wifi_config_mode function to avoid recursion
+void listenForWifiConfigToggle() {
+  canListenForWifiConfigToggle(&mcp2515, &canRxMsg, &dataFrame);
+};
+
+//if this is cancelled at any point, reconnection should be done outside the loop
+void wifi_config_mode() {
+  Serial.println("Starting WiFi Config Mode");
+  configure_WiFi(&dataFrame, &status, &newWifiCredentials, listenForWifiConfigToggle);
+  //always perform this, only difference being old WiFi connection or new
+  if (dataFrame.esp.wifiSetupControl == 1) {
+    if (connect_wifi(&dataFrame, &status, &newWifiCredentials, listenForWifiConfigToggle)) {
+      // Connected, write to SD, cancel not possible anymore
+      sendWiFICredentialsOverCan(&mcp2515, &canWifiCredentialsTxMsg, &newWifiCredentials);
+
+      // copy new info to current info
+      memcpy(wifiCredentials.ssid, newWifiCredentials.ssid, 128);
+      memcpy(wifiCredentials.password, newWifiCredentials.password, 128);
+      wifiCredentials.ssidLength      = newWifiCredentials.ssidLength;
+      wifiCredentials.passwordLength  = newWifiCredentials.passwordLength;
+    }
+  }
+  // If mode is cancelled, attempt to reconnect to old
+  if (dataFrame.esp.wifiSetupControl == 0) {
+    connect_wifi(&dataFrame, &status, &wifiCredentials, listenForWifiConfigToggle);
+  }
+  //done, reset control state
+  dataFrame.esp.wifiSetupControl = 0;
+}
+

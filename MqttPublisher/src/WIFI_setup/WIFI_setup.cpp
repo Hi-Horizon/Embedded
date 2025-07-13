@@ -16,7 +16,7 @@ unsigned long timeSinceReceived = 0;
 
 void initWiFi(DataFrame* dataFrame, espStatus* status) {
   //Try to connect to wifi
-  dataFrame->telemetry.wifiSetupControl = 0;
+  dataFrame->esp.wifiSetupControl = 0;
 
   status->updateStatus(WIFI_LOGIN_TRY);
 
@@ -41,6 +41,59 @@ void initWiFi(DataFrame* dataFrame, espStatus* status) {
   Serial.println("connected");
 }
 
+void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials) {
+  struct can_frame credentialsRequestMsg;
+  credentialsRequestMsg.can_id  = 0x752;
+  credentialsRequestMsg.can_dlc = 0;
+  //send request to network for the credentials
+  Serial.println("sending request for wifiCredentials");
+  mcp2515->sendMessage(&credentialsRequestMsg);
+  Serial.println("Sent, listening for response");
+  Serial.println(listenForWiFiCredentialsCan(mcp2515, rxFrame, wifiCredentials));
+  
+  Serial.println(wifiCredentials->ssid);
+  Serial.println(wifiCredentials->password);
+}
+
+void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCredentials *wifiCredentials) {
+  uint8_t buf[258];
+  uint32_t ind = 0;
+
+  //TODO: put in wificredentials library with name Like convertToBuf;
+  memcpy(buf, wifiCredentials->ssid, wifiCredentials->ssidLength);
+  ind = ind + wifiCredentials->ssidLength;
+  buf[ind] = '\n';
+  ind = ind + 1;
+  memcpy(buf + ind, wifiCredentials->password, wifiCredentials->passwordLength);
+  ind = ind + wifiCredentials->passwordLength;
+
+  uint8_t* bufPtr = buf;
+  uint32_t length = ind;
+	uint8_t seq 	= 0;
+	ind	= 0;
+
+	while (ind <= length - 7) {
+		txFrame->data[0] = seq;
+		memcpy(txFrame->data +1, bufPtr, 7);
+		delay(50);
+		mcp2515->sendMessage(txFrame);
+		bufPtr = bufPtr + 7;
+		ind += 7;
+		seq++;
+	}
+	uint8_t remainder = length % 7;
+	if (remainder != 0) {
+		memset(txFrame->data, 0, 8);
+		txFrame->data[0] = seq;
+		memcpy(txFrame->data+1, bufPtr, remainder);
+		delay(50);
+		mcp2515->sendMessage(txFrame);
+	}
+	memset(txFrame->data, 0, 8);
+	delay(50);
+	mcp2515->sendMessage(txFrame);
+}
+
 //**
 //* Connects to wifi given the current wifiConfig
 //**
@@ -48,7 +101,7 @@ void initWiFi(DataFrame* dataFrame, espStatus* status) {
 //* espStatus* status - status struct for ESP
 //* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
 //* std::function<void ()> idleFn - function to perform during the connection loop
-void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
+bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
   status->updateStatus(WIFI_LOGIN_TRY);
 
   WiFi.mode(WIFI_STA);
@@ -57,31 +110,36 @@ void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
   Serial.println("trying to connect...");
 
   unsigned long lastIdlePerform = 0;
-  uint8_t prevWifiSetupControl = data->telemetry.wifiSetupControl;
+
+  //variable for when connection is inside wifi_config routine, 
+  uint8_t prevWifiSetupControl = data->esp.wifiSetupControl;
   //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
     if (millis() - lastIdlePerform > 1000) {
       idleFn();   
-      if (data->telemetry.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
-        Serial.println("stopping wifi search");
-        return; //stop searching if WiFiConfigmode is enabled
+      if (data->esp.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
+        return false; //stop searching if WiFiConfigmode is enabled
       }
-      prevWifiSetupControl = data->telemetry.wifiSetupControl;
+      if (data->esp.wifiSetupControl == 0 && prevWifiSetupControl == 1) {
+        return false; //cancel connection attempt with new WiFi
+      }
+      prevWifiSetupControl = data->esp.wifiSetupControl;
       lastIdlePerform = millis();
     }
     
     switch(WiFi.status()) {
         case WL_CONNECTED:
-            return;
+            return true;
         case WL_WRONG_PASSWORD:
-            return;
+            return false;
         case WL_CONNECT_FAILED:
-            return;
+            return false;
         default:
             break;
     }
   }
+  return true;
 }
 
 //**
@@ -92,7 +150,7 @@ void connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
 //* espStatus* status - status struct for ESP
 //* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
 //* std::function<void ()> idleFn - function to perform during the connection loop
-void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
+void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void()> idleFn) {
   wifiCredentialsReceived = false;
   status->updateStatus(WIFI_SEARCH);
 
@@ -139,8 +197,8 @@ void startServer(DataFrame *data, WifiCredentials *wc, std::function<void ()> id
     while (!done) {
         if (millis() - lastIdlePerform > 1000) {
           idleFn();
-          //if control mode is turned of, shut down server and return immediately
-          if (data->telemetry.wifiSetupControl == 0) {
+          //if control mode is turned off, shut down server and return immediately
+          if (data->esp.wifiSetupControl == 0) {
             initServer.stop();
             return;
           }

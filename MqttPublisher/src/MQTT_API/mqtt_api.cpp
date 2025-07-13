@@ -73,30 +73,39 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
   Serial.println(success);
 }
 
-void mqttReconnect(PubSubClient* client, espStatus* status) {
+void mqttReconnect(PubSubClient* client, espStatus* status, std::function<void ()> idleFn) {
   // Loop until we’re reconnected
   status->updateStatus(CONNECTING_BROKER);
 
+  unsigned long lastIdlePerform = 0;
+  unsigned long lastMqttReconnect = 0;
+  unsigned long reconnectWaitTime = 5000;
+
   while (!client->connected()) {
+    if (millis() - lastIdlePerform > 1000) {
+      idleFn();
+      lastIdlePerform = millis();
+    }
+
     Serial.print("Attempting MQTT connection…");
-    String clientId = "ESP8266Client - MyClient";
+    String clientId = "ESP8266Client - MyClient"; // TODO:why in this loop?
     // Attempt to connect
     // Insert your password
-    if (client->connect(clientId.c_str(), MQTT_USER, MQTT_PWD)) {
-      Serial.println("connected");
-      // Once connected, publish an announcement…
-      client->publish("testTopic", "hello world");
-      // … and resubscribe
-      client->subscribe("testTopic");
-    } 
-    else {
-      status->updateStatus(BROKER_CONNECTION_FAILED);
-      Serial.print("failed, rc = ");
-      Serial.print(client->state());
-      Serial.println(" try again in 5 seconds");
-      Serial.println(WiFi.status());
-      // Wait 5 seconds before retrying
-      delay(5000);
+    if (millis() - lastMqttReconnect > reconnectWaitTime) {
+      if (client->connect(clientId.c_str(), MQTT_USER, MQTT_PWD)) {
+        Serial.println("connected");
+        // Once connected, publish an announcement…
+        client->publish("testTopic", "hello world");
+        // … and resubscribe
+        client->subscribe("testTopic");
+      } 
+      else {
+        status->updateStatus(BROKER_CONNECTION_FAILED);
+        Serial.print("failed, rc = ");
+        Serial.print(client->state());
+        Serial.println(" try again in 5 seconds");
+        Serial.println(WiFi.status());
+      }
     }
   }
 

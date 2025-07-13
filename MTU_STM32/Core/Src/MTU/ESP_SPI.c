@@ -105,8 +105,8 @@ void sendDataToEsp2(SPI_HandleTypeDef *spi, DataFrame* data) {
 
 void storeResponse(DataFrame* data, uint8_t* buf, int32_t length) {
     int32_t index = 0;
-    data->telemetry.espStatus          = buffer_get_uint8(buf, &index);
-    data->telemetry.internetConnection = buffer_get_uint8(buf, &index);
+    data->esp.status          = buffer_get_uint8(buf, &index);
+    data->esp.internetConnection = buffer_get_uint8(buf, &index);
     if (length == 6) {
         data->telemetry.NTPtime            = buffer_get_uint32(buf, &index);
     }

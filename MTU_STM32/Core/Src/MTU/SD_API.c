@@ -69,8 +69,8 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 		data->bms.battery_current,
 		data->bms.min_cel_voltage,
 		data->bms.max_cel_voltage,
-		data->telemetry.espStatus,
-		data->telemetry.internetConnection
+		data->esp.status,
+		data->esp.internetConnection
 	);
 	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, &row, size, NULL);
@@ -94,12 +94,38 @@ FRESULT saveWifiCredentials(WifiCredentials *wc) {
 	return fresult;
 }
 
+FRESULT saveWifiCredentialsRaw(uint8_t *buf, uint32_t length) {
+	for (int i = 0; i < 258; i++) {
+		if (buf[i] == (char) 0x0) {
+			length = i;
+			break;
+		}
+	}
+
+	f_open(&file, "wifi.txt", FA_OPEN_ALWAYS | FA_WRITE);
+
+	FRESULT fresult = f_write(&file, buf, length, NULL);
+
+	f_close(&file);
+
+	return fresult;
+}
+
+FRESULT readWifiCredentialsRaw(uint8_t *buf, uint8_t *bytesRead) {
+	f_open(&file, "wifi.txt", FA_READ);
+	FRESULT fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
+	f_close(&file);
+
+	return fresult;
+}
+
+
 FRESULT readWifiCredentials(WifiCredentials *wc) {
-	char buf[268];
+	char buf[258];
 	UINT bytesRead = 0;
 
 	f_open(&file, "wifi.txt", FA_READ);
-	FRESULT fresult = f_read(&file, buf, 268, &bytesRead);
+	FRESULT fresult = f_read(&file, buf, 258, &bytesRead);
 	f_close(&file);
 
 	wc->ssidLength = buf[0];

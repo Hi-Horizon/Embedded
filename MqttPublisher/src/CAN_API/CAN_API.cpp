@@ -16,8 +16,10 @@ void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredent
 
 void sendEspInfoToCan(MCP2515* mcp2515, can_frame* canEspTxMsg, DataFrame* dataFrame) {
   canEspTxMsg->data[0] = dataFrame->esp.status;
-  canEspTxMsg->data[1] = dataFrame->esp.internetConnection;
-  canEspTxMsg->data[2] = dataFrame->esp.wifiSetupControl;
+  canEspTxMsg->data[1] = dataFrame->esp.mqttStatus;
+  canEspTxMsg->data[2] = dataFrame->esp.internetConnection;
+  int32_t ind = 3;
+  buffer_append_uint32(canEspTxMsg->data, dataFrame->esp.NTPtime, &ind);
 
   mcp2515->sendMessage(canEspTxMsg);
 }

@@ -11,6 +11,7 @@ FDCAN_TxHeaderTypeDef MpptHeader;
 FDCAN_TxHeaderTypeDef GpsHeader;
 FDCAN_TxHeaderTypeDef WiFiCredentialsHeader;
 FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
+FDCAN_TxHeaderTypeDef GpsCoordinatesHeader;
 
 void setCanTxHeaders() {
 	MpptHeader.Identifier 		= 0x711;
@@ -24,6 +25,12 @@ void setCanTxHeaders() {
 	GpsHeader.TxFrameType 		= FDCAN_DATA_FRAME;
 	GpsHeader.DataLength 		= FDCAN_DLC_BYTES_6;
 	GpsHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+
+	GpsCoordinatesHeader.Identifier 		= 0x702;
+	GpsCoordinatesHeader.IdType 			= FDCAN_STANDARD_ID;
+	GpsCoordinatesHeader.TxFrameType 		= FDCAN_DATA_FRAME;
+	GpsCoordinatesHeader.DataLength 		= FDCAN_DLC_BYTES_8;
+	GpsCoordinatesHeader.FDFormat			= FDCAN_CLASSIC_CAN;
 
 	WiFiCredentialsHeader.Identifier 		= 0x753;
 	WiFiCredentialsHeader.IdType 			= FDCAN_STANDARD_ID;
@@ -47,6 +54,12 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	buffer_append_uint8(TxData,   data->gps.antenna, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsHeader, TxData);
+
+	ind = 0;
+	buffer_append_float32(TxData,  data->gps.lat, 10000, &ind);
+	buffer_append_float32(TxData,  data->gps.lng, 10000, &ind);
+
+	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsCoordinatesHeader, TxData);
 
 	ind = 0;
 	buffer_append_float16(TxData,  data->mppt.voltage, 100, &ind);

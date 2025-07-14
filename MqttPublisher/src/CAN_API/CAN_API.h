@@ -5,6 +5,7 @@
 #include "mcp2515.h"
 #include "CANparser.h"
 #include "DataFrame.h"
+#include "buffer.h"
 
 void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg);
 void sendEspInfoToCan(MCP2515* mcp2515, can_frame* canEspTxMsg, DataFrame* dataFrame);

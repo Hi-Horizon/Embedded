@@ -107,7 +107,7 @@ typedef struct
         uint8_t status;
         uint8_t mqttStatus;
         uint8_t internetConnection;
-
+        uint32_t NTPtime;
         // 0 = Normal operation
         // 1 = WiFi Setup mode
         uint8_t wifiSetupControl; 

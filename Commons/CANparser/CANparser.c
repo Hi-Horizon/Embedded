@@ -141,6 +141,14 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				break;
 			}
 
+		case 0x702:
+			{
+				ind = 0;
+				dataset->gps.lat = buffer_get_float32(payload, 10000, &ind);
+				dataset->gps.lng = buffer_get_float32(payload, 10000, &ind);
+				break;
+			}
+
 		case 0x711:
 			{
 				ind = 0;
@@ -169,7 +177,6 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
-				dataset->display.requestWifiSetup = buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -180,14 +187,16 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
 				break;
 			}
-
+		
+		// esp 
 
 		case 0x751:
 			{
 				ind = 0;
 				dataset->esp.status = buffer_get_uint8(payload, &ind);
+				dataset->esp.mqttStatus = buffer_get_uint8(payload, &ind);
 				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
-				dataset->esp.wifiSetupControl = buffer_get_uint8(payload, &ind);
+  				dataset->esp.NTPtime = buffer_get_uint32(payload, &ind);
 				break;
 			}
 

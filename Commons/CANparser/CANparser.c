@@ -187,13 +187,16 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
 				break;
 			}
-
+		
+		// esp 
 
 		case 0x751:
 			{
 				ind = 0;
 				dataset->esp.status = buffer_get_uint8(payload, &ind);
+				dataset->esp.mqttStatus = buffer_get_uint8(payload, &ind);
 				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
+  				dataset->esp.NTPtime = buffer_get_uint32(payload, &ind);
 				break;
 			}
 

@@ -141,6 +141,14 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				break;
 			}
 
+		case 0x702:
+			{
+				ind = 0;
+				dataset->gps.lat = buffer_get_float32(payload, 10000, &ind);
+				dataset->gps.lng = buffer_get_float32(payload, 10000, &ind);
+				break;
+			}
+
 		case 0x711:
 			{
 				ind = 0;

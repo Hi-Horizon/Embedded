@@ -29,6 +29,7 @@ FRESULT writeDataHeaderToSD() {
 	const char* header =
 		"\n"
 		"time,"
+		"time_NTP,"
 		"GPS_fix,"
 		"GPS_latitude,"
 		"GPS_longitude,"
@@ -54,8 +55,9 @@ FRESULT writeDataHeaderToSD() {
 
 FRESULT writeDataFrameToSD(DataFrame* data) {
 	char row[256];
-	int size = sprintf(row, "%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,\n",
+	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,\n",
 		data->telemetry.unixTime,
+		data->esp.NTPtime,
 		data->gps.fix,
 		data->gps.lat,
 		data->gps.lng,

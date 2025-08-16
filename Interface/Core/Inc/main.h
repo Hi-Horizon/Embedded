@@ -75,6 +75,9 @@ void Error_Handler(void);
 #define wificonfig_Pin GPIO_PIN_4
 #define wificonfig_GPIO_Port GPIOB
 #define wificonfig_EXTI_IRQn EXTI4_IRQn
+#define reset_input_Pin GPIO_PIN_5
+#define reset_input_GPIO_Port GPIOB
+#define reset_input_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 

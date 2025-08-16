@@ -25,20 +25,54 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     "\"fix\":%u,"
     "\"lat\":%f,"
     "\"lng\":%f,"
-    "\"v\":%f,"
+    "\"v\":%.1f,"
     "\"gpsT\":%u,"
     "\"Pz\":%i,"
     "\"mpptT\":%u,"
     "\"escW\":%u,"
     "\"escF\":%u,"
-    "\"vm\":%f,"
-    "\"mc\":%f,"
-    "\"Pu\":%f,"
+    "\"vm\":%.2f,"
+    "\"mc\":%.2f,"
+    "\"Pu\":%.2f,"
     "\"escT\":%u,"
-    "\"bv\":%f,"
-    "\"bc\":%f,"
-    "\"bMinv\":%f,"
-    "\"bMaxv\":%f,"
+    "\"bv\":%.2f,"
+    "\"bc\":%.2f,"
+    "\"bMinv\":%.2f,"
+    "\"bMaxv\":%.2f,"
+    "\"vc1\":%.2f,"
+    "\"vc2\":%.2f,"
+    "\"vc3\":%.2f,"
+    "\"vc4\":%.2f,"
+    "\"vc5\":%.2f,"
+    "\"vc6\":%.2f,"
+    "\"vc7\":%.2f,"
+    "\"vc8\":%.2f,"
+    "\"vc9\":%.2f,"
+    "\"vc10\":%.2f,"
+    "\"vc11\":%.2f,"
+    "\"vc12\":%.2f,"
+    "\"vc13\":%.2f,"
+    "\"vc14\":%.2f,"
+    "\"cb1\":%.2f,"
+    "\"cb2\":%.2f,"
+    "\"cb3\":%.2f,"
+    "\"cb4\":%.2f,"
+    "\"cb5\":%.2f,"
+    "\"cb6\":%.2f,"
+    "\"cb7\":%.2f,"
+    "\"cb8\":%.2f,"
+    "\"cb9\":%.2f,"
+    "\"cb10\":%.2f,"
+    "\"cb11\":%.2f,"
+    "\"cb12\":%.2f,"
+    "\"cb13\":%.2f,"
+    "\"cb14\":%.2f,"
+    "\"cT1\":%.2f,"
+    "\"cT2\":%.2f,"
+    "\"cT3\":%.2f,"
+    "\"cT4\":%.2f,"
+    "\"Tbal1\":%.2f,"
+    "\"Tbal2\":%.2f,"
     "\"bmsT\":%u"
     "}"
     , dataFrame->telemetry.unixTime
@@ -47,7 +81,7 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->gps.lng
     , dataFrame->gps.speed
     , dataFrame->gps.last_msg
-    , dataFrame->mppt.power
+    , (int) std::round(dataFrame->bms.battery_voltage*dataFrame->bms.battery_current)
     , dataFrame->mppt.last_msg
     , dataFrame->motor.warning
     , dataFrame->motor.failures
@@ -59,6 +93,40 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->bms.battery_current
     , dataFrame->bms.min_cel_voltage
     , dataFrame->bms.max_cel_voltage
+    , dataFrame->bms.cell_voltage[0]
+    , dataFrame->bms.cell_voltage[1]
+    , dataFrame->bms.cell_voltage[2]
+    , dataFrame->bms.cell_voltage[3]
+    , dataFrame->bms.cell_voltage[4]
+    , dataFrame->bms.cell_voltage[5]
+    , dataFrame->bms.cell_voltage[6]
+    , dataFrame->bms.cell_voltage[7]
+    , dataFrame->bms.cell_voltage[8]
+    , dataFrame->bms.cell_voltage[9]
+    , dataFrame->bms.cell_voltage[10]
+    , dataFrame->bms.cell_voltage[11]
+    , dataFrame->bms.cell_voltage[12]
+    , dataFrame->bms.cell_voltage[13]
+    , dataFrame->bms.is_Balancing[0]
+    , dataFrame->bms.is_Balancing[1]
+    , dataFrame->bms.is_Balancing[2]
+    , dataFrame->bms.is_Balancing[3]
+    , dataFrame->bms.is_Balancing[4]
+    , dataFrame->bms.is_Balancing[5]
+    , dataFrame->bms.is_Balancing[6]
+    , dataFrame->bms.is_Balancing[7]
+    , dataFrame->bms.is_Balancing[8]
+    , dataFrame->bms.is_Balancing[9]
+    , dataFrame->bms.is_Balancing[10]
+    , dataFrame->bms.is_Balancing[11]
+    , dataFrame->bms.is_Balancing[12]
+    , dataFrame->bms.is_Balancing[13]
+    , dataFrame->bms.cell_temp[0]
+    , dataFrame->bms.cell_temp[1]
+    , dataFrame->bms.cell_temp[2]
+    , dataFrame->bms.cell_temp[3]
+    , dataFrame->bms.balance_temp[0]
+    , dataFrame->bms.balance_temp[1]
     , dataFrame->bms.last_msg
   );  
 

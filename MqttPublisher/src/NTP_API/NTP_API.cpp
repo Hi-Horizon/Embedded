@@ -18,10 +18,7 @@ uint32_t setDateTime(std::function<void()> idleFn) {
   Serial.print("Waiting for NTP time sync: ");
   time_t now = time(nullptr);
   while (now < 8 * 3600 * 2) {
-    if (millis() - lastIdlePerform > 1000) {
-      idleFn();
-      lastIdlePerform = millis();
-    }
+    idleFn();
     delay(100);
     Serial.print(".");
     now = time(nullptr);  

@@ -48,7 +48,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x204:
 		{
 			ind = 0;
-			dataset->bms.battery_current = buffer_get_uint16_rev_endian(payload, &ind)*0.01;
+			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 326.7f;
+			dataset->bms.charge_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 250.0f;
 			break;
 		}
 		//bms cell temp
@@ -56,9 +57,23 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		{
 			ind = 0;
 			for (int i = 0; i < 4; i++) {
-				dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01;
+				(dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
 			}
 			break;
+		}
+		case 0x2A1: //balanceTemp
+		{
+			ind = 0;
+			for (int i = 0; i < 2; i++) {
+				(dataset->bms.balance_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
+			}
+			break;
+		}
+		case 0x2A2: // balancing
+		{
+			ind = 0;
+			uint16_t isBalancingNum = buffer_get_uint16(payload, &ind);
+			generate_bit_list(14, isBalancingNum, dataset->bms.is_Balancing);
 		}
 		//bms (old)
 		case 0x601:
@@ -212,7 +227,6 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 // int len:                 length of the amount of booleans stored
 // unsigned long data:      integer to be extracted
 // DataFrame *dataset:      Pointer to an output array with all the booleans
-
 void generate_bit_list(int len, unsigned long data, bool* return_array)
 {
     for(int i = 0; i < len; i++) {

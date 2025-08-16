@@ -123,7 +123,6 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
     yield();
     idleFn();
     if (millis() - lastIdlePerform > 1000) {
-         
       if (data->esp.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
         return false; //stop searching if WiFiConfigmode is enabled
       }

@@ -56,6 +56,7 @@ TIM_HandleTypeDef htim2;
 
 uint8_t TxData[8];
 FDCAN_TxHeaderTypeDef screenHeader;
+FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
 FDCAN_RxHeaderTypeDef RxHeader;
 
 DataFrame data;
@@ -71,6 +72,7 @@ uint32_t lastPress = 0;
 
 //wifiConfig button
 bool requestWifiConfigMode = false;
+bool sendRequestWifiConfigMode = false;
 
 bool blockWifiBtn = false;
 #define wifiDebounceTime 500
@@ -95,7 +97,16 @@ void drawDataScreen(int screencode);
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
+	if (RxHeader.Identifier == 0x753) {
+		requestWifiConfigMode = 0;
+	}
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+}
+
+void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, bool requestWifiConfigMode) {
+	uint8_t txBuf[8] = {};
+	txBuf[0] = requestWifiConfigMode;
+	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiConfigModeControl, txBuf);
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
@@ -110,6 +121,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 	}
     if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) // If The INT Source Is EXTI Line9 (A9 Pin)
     {
+    	sendRequestWifiConfigMode = true;
 		requestWifiConfigMode = !requestWifiConfigMode;
 		blockWifiBtn = true;
     }
@@ -184,7 +196,7 @@ void screen1() {
 		uint8_overflowCheck(data.gps.antenna, (uint8_t) 9),
 		uint8_overflowCheck(data.mppt.cs, (uint8_t) 9),
 		uint8_overflowCheck(data.mppt.error, (uint8_t) 999),
-		uint8_overflowCheck(data.telemetry.espStatus, (uint8_t) 9),
+		uint8_overflowCheck(data.esp.status, (uint8_t) 9),
 		seconds
 	);
 	for (int i = 0; i < screenCharSize; i++) {
@@ -193,7 +205,7 @@ void screen1() {
 }
 
 void screen2() {
-	screenCharSize = sprintf(screenStr, "connect to access   point");
+	screenCharSize = sprintf(screenStr, "- Wifi Setup Mode - Hi-Horizon TelemetryConnect to HotSpot: To send new config");
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);
 	}
@@ -259,6 +271,12 @@ int main(void)
   screenHeader.DataLength 	= FDCAN_DLC_BYTES_8;
   screenHeader.FDFormat		= FDCAN_CLASSIC_CAN;
 
+  WiFiConfigModeControl.Identifier 		= 0x754;
+  WiFiConfigModeControl.IdType 			= FDCAN_STANDARD_ID;
+  WiFiConfigModeControl.TxFrameType 	= FDCAN_DATA_FRAME;
+  WiFiConfigModeControl.DataLength 		= FDCAN_DLC_BYTES_8;
+  WiFiConfigModeControl.FDFormat		= FDCAN_CLASSIC_CAN;
+
   lcd_init();
   HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
 
@@ -293,7 +311,14 @@ int main(void)
 		lastWifiPress = HAL_GetTick();
 	}
 
+//	if (sendRequestWifiConfigMode) {
+//		toggleWifiConfigMode(&hfdcan1);
+//		sendRequestWifiConfigMode=false;
+//	}
+
 	if (HAL_GetTick() - lastRefresh > 1000L) {
+		toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
+
 		if (requestWifiConfigMode == 1) drawDataScreen(2);
 		else 					   drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();

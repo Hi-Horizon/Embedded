@@ -8,6 +8,7 @@ typedef struct
 {
         float battery_voltage;
         float battery_current;
+        float charge_current;
         float SOC;
         
         //kan weg??
@@ -19,13 +20,15 @@ typedef struct
         } status;
         //tot hier
         float cell_voltage[14];
+        float is_Balancing[14];
         float cell_temp[4];
+        float balance_temp[2];
 
         float min_cel_voltage;
         float max_cel_voltage;
 
         float bms_temp;
-        float cells_temp;
+        float cells_temp; // kan weg
         float env_temp;
         uint32_t last_msg;
 } BMS_data;
@@ -82,14 +85,6 @@ typedef struct
         uint32_t localRuntime;
         
         uint8_t SD_error;
-        
-        // 0 = Normal operation
-        // 1 = WiFi Setup mode
-        uint8_t wifiSetupControl; 
-        
-        uint8_t espStatus;
-        uint8_t mqttStatus;
-        uint8_t internetConnection;
         float Pmotor;
         //kan weg
         uint32_t strategyRuntime;
@@ -110,6 +105,17 @@ typedef struct
         uint32_t last_msg;
 } GPS_data;
 
+typedef struct 
+{
+        uint8_t status;
+        uint8_t mqttStatus;
+        uint8_t internetConnection;
+        uint32_t NTPtime;
+        // 0 = Normal operation
+        // 1 = WiFi Setup mode
+        uint8_t wifiSetupControl; 
+} ESP_data;
+
 typedef struct {
 	BMS_data bms;
 	Motorcontroller_data motor;
@@ -117,7 +123,16 @@ typedef struct {
 	GPS_data gps;
 	Telemetry_data telemetry;
 	Screen_data display;
+        ESP_data esp;
 } DataFrame;
+
+
+typedef struct {
+    char ssid[128];
+    uint8_t ssidLength;
+    char password[128];
+    uint8_t passwordLength;
+} WifiCredentials;
 
 
 #endif /* INC_DATASET_HHRT__H_ */

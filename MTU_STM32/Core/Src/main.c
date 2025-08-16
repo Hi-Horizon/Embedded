@@ -96,12 +96,21 @@ uint32_t              TxMailbox;
 
 //ESP
 #define ESP_BUF_SIZE 128
+bool sendWiFiCredentialsFlag = false;
+bool WifiCredentialsReceivedFlag = false;
 bool EspWaitForCommand = true;
 bool espValidConn = true;
+//debug
+bool toggleWifiConfig = 0;
+
+uint8_t rxWifiCredSeq = 0;
 uint8_t nextMsgId = 0;
 uint8_t esp_tx_buf[ESP_BUF_SIZE];
 uint8_t esp_rx_buf[ESP_BUF_SIZE];
 
+uint8_t wifiCredentialsLength = 0;
+uint32_t wifiCredentialsRxLength = 0;
+uint8_t wifiCredentialsBuf[258];
 WifiCredentials wifiCredentials;
 uint8_t prevRequestValue = 0;
 
@@ -157,11 +166,26 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	}
 }
 
+void CAN_parse_for_WiFiCredentials_request() {
+	if (RxHeader.Identifier == 0x752) {
+		sendWiFiCredentialsFlag = true;
+	}
+}
+
 // processes CANBUS messages
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
+	CAN_parse_for_WiFiCredentials_request();
+	if (listenForWiFiCredentialsCan(RxHeader.Identifier, RxData, wifiCredentialsBuf, &wifiCredentialsRxLength, &WifiCredentialsReceivedFlag, &rxWifiCredSeq) == 0) {
+		rxWifiCredSeq = 0;
+	}
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+}
+
+void sendWiFiCredentialsWithCan() {
+	readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
+	sendWiFiCredentialsBuf(&hfdcan1, wifiCredentialsBuf, wifiCredentialsLength);
 }
 
 
@@ -239,7 +263,7 @@ int main(void)
   sdResult = initSD(&fs, &total, &free_space);
 
   //get wifi credentials
-  sdResult = readWifiCredentials(&wifiCredentials);
+  sdResult = readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
 
   //UART INIT
   //clear the RDR register to avoid overrun error
@@ -298,17 +322,29 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
-	if (needToSaveWiFiConfig) {
-		sdResult = saveWifiCredentials(&wifiCredentials);
-		if (sdResult == FR_OK) needToSaveWiFiConfig = false; //success
+	if (sendWiFiCredentialsFlag) {
+		sendWiFiCredentialsWithCan();
+		sendWiFiCredentialsFlag = false;
+	}
+
+	if (WifiCredentialsReceivedFlag) {
+		sdResult = saveWifiCredentialsRaw(wifiCredentialsBuf, wifiCredentialsLength);
+		if (sdResult == FR_OK) { //success
+			rxWifiCredSeq = 0;
+			WifiCredentialsReceivedFlag = false;
+		}
 	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 	// TROUBLESHOOT CODE
+	if (toggleWifiConfig) {
+		toggleWifiConfigMode(&hfdcan1);
+		toggleWifiConfig = 0;
+	}
 
 	// Uncomment this for dummy data generation
-//	 fillRandomData(&data);
+	// fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

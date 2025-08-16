@@ -7,7 +7,7 @@
 #include <time.h>
 #include <TZ.h>
 
-uint32_t setDateTime();
-void initTime(NTPClient* timeClient, DataFrame* dataFrame);
+uint32_t setDateTime(std::function<void()> idleFn);
+void initTime(NTPClient* timeClient, DataFrame* dataFrame, std::function<void()> idleFn);
 
 #endif

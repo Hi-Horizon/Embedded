@@ -48,7 +48,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x204:
 		{
 			ind = 0;
-			dataset->bms.battery_current = buffer_get_uint16_rev_endian(payload, &ind)*0.01;
+			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 326.7f;
+			dataset->bms.charge_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 250.0f;
 			break;
 		}
 		//bms cell temp
@@ -56,9 +57,23 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		{
 			ind = 0;
 			for (int i = 0; i < 4; i++) {
-				dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01;
+				(dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
 			}
 			break;
+		}
+		case 0x2A1: //balanceTemp
+		{
+			ind = 0;
+			for (int i = 0; i < 2; i++) {
+				(dataset->bms.balance_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
+			}
+			break;
+		}
+		case 0x2A2: // balancing
+		{
+			ind = 0;
+			uint16_t isBalancingNum = buffer_get_uint16(payload, &ind);
+			generate_bit_list(14, isBalancingNum, dataset->bms.is_Balancing);
 		}
 		//bms (old)
 		case 0x601:
@@ -141,6 +156,14 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				break;
 			}
 
+		case 0x702:
+			{
+				ind = 0;
+				dataset->gps.lat = buffer_get_float32(payload, 10000, &ind);
+				dataset->gps.lng = buffer_get_float32(payload, 10000, &ind);
+				break;
+			}
+
 		case 0x711:
 			{
 				ind = 0;
@@ -169,7 +192,6 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
-				dataset->display.requestWifiSetup = buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -180,14 +202,16 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
 				break;
 			}
-
+		
+		// esp 
 
 		case 0x751:
 			{
 				ind = 0;
-				dataset->telemetry.espStatus = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.internetConnection = buffer_get_uint8(payload, &ind);
-				dataset->telemetry.wifiSetupControl = buffer_get_uint8(payload, &ind);
+				dataset->esp.status = buffer_get_uint8(payload, &ind);
+				dataset->esp.mqttStatus = buffer_get_uint8(payload, &ind);
+				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
+  				dataset->esp.NTPtime = buffer_get_uint32(payload, &ind);
 				break;
 			}
 
@@ -203,7 +227,6 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 // int len:                 length of the amount of booleans stored
 // unsigned long data:      integer to be extracted
 // DataFrame *dataset:      Pointer to an output array with all the booleans
-
 void generate_bit_list(int len, unsigned long data, bool* return_array)
 {
     for(int i = 0; i < len; i++) {
@@ -222,4 +245,3 @@ uint16_t buffer_get_uint16_rev_endian(const uint8_t *buffer, int32_t *index) {
 	*index += 2;
 	return res;
 }
-

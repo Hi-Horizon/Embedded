@@ -56,6 +56,7 @@ TIM_HandleTypeDef htim2;
 
 uint8_t TxData[8];
 FDCAN_TxHeaderTypeDef screenHeader;
+FDCAN_TxHeaderTypeDef TelemetryReset;
 FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
 FDCAN_RxHeaderTypeDef RxHeader;
 
@@ -65,6 +66,8 @@ DataFrame data;
 #define menuItems 2
 uint32_t menuSelect = 0;
 uint32_t counter = 0;
+
+bool triggerReset = false;
 
 bool blockbtn = false;
 #define debounceTime 200
@@ -119,11 +122,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 		counter++;
 		blockbtn = true;
 	}
-    if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) // If The INT Source Is EXTI Line9 (A9 Pin)
-    {
+    if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) {
     	sendRequestWifiConfigMode = true;
 		requestWifiConfigMode = !requestWifiConfigMode;
 		blockWifiBtn = true;
+    }
+    if(GPIO_PIN == GPIO_PIN_5) {
+    	triggerReset = true;
     }
 }
 
@@ -277,6 +282,12 @@ int main(void)
   WiFiConfigModeControl.DataLength 		= FDCAN_DLC_BYTES_8;
   WiFiConfigModeControl.FDFormat		= FDCAN_CLASSIC_CAN;
 
+  TelemetryReset.Identifier 	= 0x100;
+  TelemetryReset.IdType 		= FDCAN_STANDARD_ID;
+  TelemetryReset.TxFrameType 	= FDCAN_DATA_FRAME;
+  TelemetryReset.DataLength 	= FDCAN_DLC_BYTES_0;
+  TelemetryReset.FDFormat		= FDCAN_CLASSIC_CAN;
+
   lcd_init();
   HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
 
@@ -311,10 +322,12 @@ int main(void)
 		lastWifiPress = HAL_GetTick();
 	}
 
-//	if (sendRequestWifiConfigMode) {
-//		toggleWifiConfigMode(&hfdcan1);
-//		sendRequestWifiConfigMode=false;
-//	}
+	if (triggerReset) {
+    	uint8_t txBuf[8] = {};
+    	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TelemetryReset, txBuf);
+    	HAL_Delay(500);
+    	NVIC_SystemReset();
+	}
 
 	if (HAL_GetTick() - lastRefresh > 1000L) {
 		toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
@@ -606,8 +619,14 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : wificonfig_Pin */
   GPIO_InitStruct.Pin = wificonfig_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(wificonfig_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : reset_input_Pin */
+  GPIO_InitStruct.Pin = reset_input_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(reset_input_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
@@ -615,6 +634,9 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);

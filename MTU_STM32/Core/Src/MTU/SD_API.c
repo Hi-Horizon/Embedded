@@ -104,6 +104,8 @@ FRESULT saveWifiCredentialsRaw(uint8_t *buf, uint32_t length) {
 		}
 	}
 
+	f_unlink("wifi.txt");
+
 	f_open(&file, "wifi.txt", FA_OPEN_ALWAYS | FA_WRITE);
 
 	FRESULT fresult = f_write(&file, buf, length, NULL);

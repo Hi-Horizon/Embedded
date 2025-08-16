@@ -184,6 +184,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 }
 
 void sendWiFiCredentialsWithCan() {
+	readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
 	sendWiFiCredentialsBuf(&hfdcan1, wifiCredentialsBuf, wifiCredentialsLength);
 }
 

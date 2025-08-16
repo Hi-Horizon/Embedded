@@ -76,6 +76,7 @@ void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCreden
 		txFrame->data[0] = seq;
 		memcpy(txFrame->data +1, bufPtr, 7);
 		delay(50);
+    Serial.print((char*) txFrame->data);
 		mcp2515->sendMessage(txFrame);
 		bufPtr = bufPtr + 7;
 		ind += 7;
@@ -87,11 +88,15 @@ void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCreden
 		txFrame->data[0] = seq;
 		memcpy(txFrame->data+1, bufPtr, remainder);
 		delay(50);
+    Serial.print((char*) txFrame->data);
 		mcp2515->sendMessage(txFrame);
 	}
 	memset(txFrame->data, 0, 8);
 	delay(50);
+  Serial.print((char*) txFrame->data);
 	mcp2515->sendMessage(txFrame);
+
+  Serial.println("<-canmsg");
 }
 
 //**
@@ -116,8 +121,9 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
   //connectLoop
   while (WiFi.status() != WL_CONNECTED) {
     yield();
+    idleFn();
     if (millis() - lastIdlePerform > 1000) {
-      idleFn();   
+         
       if (data->esp.wifiSetupControl == 1 && prevWifiSetupControl == 0) {
         return false; //stop searching if WiFiConfigmode is enabled
       }
@@ -131,10 +137,10 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
     switch(WiFi.status()) {
         case WL_CONNECTED:
             return true;
-        case WL_WRONG_PASSWORD:
-            return false;
-        case WL_CONNECT_FAILED:
-            return false;
+        // case WL_WRONG_PASSWORD:
+        //     return false;
+        // case WL_CONNECT_FAILED:
+        //     return false;
         default:
             break;
     }
@@ -195,8 +201,8 @@ void startServer(DataFrame *data, WifiCredentials *wc, std::function<void ()> id
     //server loop
     bool done = false;
     while (!done) {
-        if (millis() - lastIdlePerform > 1000) {
-          idleFn();
+        idleFn();
+        if (millis() - lastIdlePerform > 1000) {   
           //if control mode is turned off, shut down server and return immediately
           if (data->esp.wifiSetupControl == 0) {
             initServer.stop();

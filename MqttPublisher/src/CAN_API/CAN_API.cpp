@@ -77,7 +77,7 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
 void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, bool* newDataFlag) {
   if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
     if (canRxMsg->can_id == 0x754) {
-      dataFrame->esp.wifiSetupControl = !dataFrame->esp.wifiSetupControl;
+      dataFrame->esp.wifiSetupControl = canRxMsg->data[0];
       return;
     }
     CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame);
@@ -100,7 +100,7 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
 void canListenForWifiConfigToggle(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame) {
   if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
     if (canRxMsg->can_id == 0x754) {
-      dataFrame->esp.wifiSetupControl = !dataFrame->esp.wifiSetupControl;
+      dataFrame->esp.wifiSetupControl = canRxMsg->data[0];
       return;
     }
   }

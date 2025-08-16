@@ -81,7 +81,7 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->gps.lng
     , dataFrame->gps.speed
     , dataFrame->gps.last_msg
-    , dataFrame->bms.battery_voltage*dataFrame->bms.battery_current
+    , (int) std::round(dataFrame->bms.battery_voltage*dataFrame->bms.battery_current)
     , dataFrame->mppt.last_msg
     , dataFrame->motor.warning
     , dataFrame->motor.failures
@@ -107,7 +107,6 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->bms.cell_voltage[11]
     , dataFrame->bms.cell_voltage[12]
     , dataFrame->bms.cell_voltage[13]
-    , dataFrame->bms.cell_voltage[14]
     , dataFrame->bms.is_Balancing[0]
     , dataFrame->bms.is_Balancing[1]
     , dataFrame->bms.is_Balancing[2]
@@ -122,7 +121,6 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->bms.is_Balancing[11]
     , dataFrame->bms.is_Balancing[12]
     , dataFrame->bms.is_Balancing[13]
-    , dataFrame->bms.is_Balancing[14]
     , dataFrame->bms.cell_temp[0]
     , dataFrame->bms.cell_temp[1]
     , dataFrame->bms.cell_temp[2]

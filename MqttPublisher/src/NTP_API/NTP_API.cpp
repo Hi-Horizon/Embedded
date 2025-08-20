@@ -3,7 +3,7 @@
 void initTime(NTPClient* timeClient, DataFrame* dataFrame, std::function<void()> idleFn) {
   timeClient->begin();
   timeClient->update();
-  dataFrame->telemetry.NTPtime = timeClient->getEpochTime();
+  dataFrame->esp.NTPtime = timeClient->getEpochTime();
   setDateTime(idleFn);
 }
 

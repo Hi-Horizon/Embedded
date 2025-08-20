@@ -94,6 +94,7 @@ void updateConnectionStatus() {
   //Get diagnostic info
   dataFrame.esp.internetConnection = WiFi.RSSI();
   dataFrame.esp.mqttStatus = client->state();
+  dataFrame.esp.NTPtime = timeClient.getEpochTime();
   
   // first check if internet is still connected. if not, reconnect
   if (WiFi.status() != WL_CONNECTED) {              

@@ -20,7 +20,7 @@ typedef struct
         } status;
         //tot hier
         float cell_voltage[14];
-        float is_Balancing[14];
+        bool is_Balancing[14];
         float cell_temp[4];
         float balance_temp[2];
 

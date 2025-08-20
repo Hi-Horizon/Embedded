@@ -40,11 +40,46 @@ FRESULT writeDataHeaderToSD() {
 		"ESC_batteryVoltage,"
 		"ESC_InputCurrent,"
 		"BMS_batteryVoltage,"
+		"BMS_batteryCurrentCharge"
 		"BMS_batteryCurrent,"
 		"min_cell_voltage,"
 		"max_cell_voltage,"
 		"ESP_status,"
 		"ESP_signal_strength,"
+		"Cell_Voltage_1,"
+		"Cell_Voltage_2,"
+		"Cell_Voltage_3,"
+		"Cell_Voltage_4,"
+		"Cell_Voltage_5,"
+		"Cell_Voltage_6,"
+		"Cell_Voltage_7,"
+		"Cell_Voltage_8,"
+		"Cell_Voltage_9,"
+		"Cell_Voltage_10,"
+		"Cell_Voltage_11,"
+		"Cell_Voltage_12,"
+		"Cell_Voltage_13,"
+		"Cell_Voltage_14,"
+		"Cell_Balance_1,"
+		"Cell_Balance_2,"
+		"Cell_Balance_3,"
+		"Cell_Balance_4,"
+		"Cell_Balance_5,"
+		"Cell_Balance_6,"
+		"Cell_Balance_7,"
+		"Cell_Balance_8,"
+		"Cell_Balance_9,"
+		"Cell_Balance_10,"
+		"Cell_Balance_11,"
+		"Cell_Balance_12,"
+		"Cell_Balance_13,"
+		"Cell_Balance_14,"
+		"Cell_temp_1,"
+		"Cell_temp_2,"
+		"Cell_temp_3,"
+		"Cell_temp_4,"
+		"Bal_temp_1,"
+		"Bal_temp_2,"
 		"\n";
 	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, header, strlen(header), NULL);
@@ -54,8 +89,8 @@ FRESULT writeDataHeaderToSD() {
 }
 
 FRESULT writeDataFrameToSD(DataFrame* data) {
-	char row[256];
-	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,\n",
+	char row[1024];
+	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
 		data->telemetry.unixTime,
 		data->esp.NTPtime,
 		data->gps.fix,
@@ -69,11 +104,34 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 		data->motor.battery_current,
 		data->bms.battery_voltage,
 		data->bms.battery_current,
+		data->bms.charge_current,
 		data->bms.min_cel_voltage,
 		data->bms.max_cel_voltage,
 		data->esp.status,
 		data->esp.internetConnection
 	);
+
+	for (int i = 0; i < 14; i++) {
+		size += sprintf(row + size, "%.3f,",
+			data->bms.cell_voltage[i]
+		);
+	}
+	for (int i = 0; i < 14; i++) {
+		size += sprintf(row + size, "%i,",
+			data->bms.is_Balancing[i]
+		);
+	}
+	for (int i = 0; i < 4; i++) {
+		size += sprintf(row + size, "%.3f,",
+			data->bms.cell_temp[i]
+		);
+	}
+	for (int i = 0; i < 2; i++) {
+		size += sprintf(row + size, "%.3f,", data->bms.balance_temp[i]);
+	}
+	row[size] = '\n';
+	size++;
+
 	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, &row, size, NULL);
 	f_close(&file);

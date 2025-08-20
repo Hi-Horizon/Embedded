@@ -172,8 +172,8 @@ void screen0() {
 	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
 	screenCharSize = sprintf(screenStr,
 		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f Tba %6.2f",
-		uint16_overflowCheck(data.mppt.power, (uint16_t) 999999),
-		float_overflowCheck(Pzon, 999999),
+		uint16_overflowCheck(Pzon, (uint16_t) 999999),
+		float_overflowCheck(Pmotor, 999999),
 		float_overflowCheck(data.motor.rpm, 99999999.99),
 		float_overflowCheck(data.gps.speed, 999.99),
 		float_overflowCheck(data.bms.battery_voltage, 999.99),
@@ -305,6 +305,13 @@ int main(void)
   data.motor.battery_current = 9999999;
   data.motor.controller_temp = (uint8_t) 255;
   data.bms.cells_temp = 9999999;
+
+  data.bms.battery_voltage = 9999999;
+  data.bms.charge_current = 9999999;
+  data.bms.cell_temp[0] = 9999999;
+  data.bms.cell_temp[1] = 9999999;
+  data.bms.cell_temp[2] = 9999999;
+  data.bms.cell_temp[3] = 9999999;
   /* USER CODE END 2 */
 
   /* Infinite loop */

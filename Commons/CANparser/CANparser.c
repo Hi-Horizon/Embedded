@@ -48,7 +48,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x204:
 		{
 			ind = 0;
-			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 326.7f;
+			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) + 326.7f;
 			dataset->bms.charge_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 250.0f;
 			break;
 		}
@@ -57,7 +57,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		{
 			ind = 0;
 			for (int i = 0; i < 4; i++) {
-				(dataset->bms.cell_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
+				dataset->bms.cell_temp[i] = (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 50.0f;
 			}
 			break;
 		}
@@ -65,7 +65,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		{
 			ind = 0;
 			for (int i = 0; i < 2; i++) {
-				(dataset->bms.balance_temp[i] = buffer_get_uint16(payload, &ind)*0.01) - 50;
+				dataset->bms.balance_temp[i] = (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 50.0f;
 			}
 			break;
 		}

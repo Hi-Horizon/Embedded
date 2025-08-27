@@ -116,6 +116,18 @@ typedef struct
         uint8_t wifiSetupControl; 
 } ESP_data;
 
+enum ESP_STATE {
+    ESP_START,
+    ESP_REQUESTING_WIFI_CONFIG,
+    ESP_WIFI_CONNECT_ATTEMPT,
+    ESP_WIFI_PASSWORD_FAILED,
+    ESP_WIFI_CONNECT_FAILED,
+    ESP_NTP_TIME_SYNC,
+    ESP_CONNECTING_BROKER,
+    ESP_OPERATING,
+    ESP_WIFI_NEW_CONFIG_MODE,
+};
+
 typedef struct {
 	BMS_data bms;
 	Motorcontroller_data motor;

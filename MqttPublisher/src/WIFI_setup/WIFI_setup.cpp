@@ -136,10 +136,12 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
     switch(WiFi.status()) {
         case WL_CONNECTED:
             return true;
-        // case WL_WRONG_PASSWORD:
-        //     return false;
-        // case WL_CONNECT_FAILED:
-        //     return false;
+        case WL_WRONG_PASSWORD:
+            data->esp.status = ESP_WIFI_PASSWORD_FAILED;
+            break;
+        case WL_CONNECT_FAILED:
+            data->esp.status = ESP_WIFI_CONNECT_FAILED;
+            break;
         default:
             break;
     }

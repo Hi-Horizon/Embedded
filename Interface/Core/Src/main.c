@@ -176,7 +176,7 @@ void screen0() {
 		float_overflowCheck(Pmotor, 999999),
 		float_overflowCheck(data.motor.rpm, 99999999.99),
 		float_overflowCheck(data.gps.speed, 999.99),
-		float_overflowCheck(data.bms.battery_voltage, 999.99),
+		float_overflowCheck(data.motor.battery_voltage, 999.99),
 		float_overflowCheck(data.motor.controller_temp, 999.99),
 		float_overflowCheck(TcellAvg, 999.99)
 	);

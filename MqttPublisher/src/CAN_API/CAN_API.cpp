@@ -2,6 +2,10 @@
 
 void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg) {
   Serial.println("Initializing CAN");
+  
+
+  pinMode(D8, OUTPUT);
+  digitalWrite(D8, HIGH);
 
   canEspTxMsg->can_id  = 0x751;
   canEspTxMsg->can_dlc = CAN_MAX_DLEN;

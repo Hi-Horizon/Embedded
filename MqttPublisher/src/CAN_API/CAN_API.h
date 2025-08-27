@@ -2,6 +2,7 @@
 #define __CAN_API__H
 
 #include "Arduino.h"
+#include "SPI.h"
 #include "mcp2515.h"
 #include "CANparser.h"
 #include "DataFrame.h"

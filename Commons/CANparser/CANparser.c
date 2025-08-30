@@ -5,7 +5,7 @@
 // uint32_t id:             Id of CAN msg
 // const uint8_t *payload:  Pointer to the array with the msg data
 // DataFrame *dataset:      Pointer to where the parsed output will be stored
-void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset) 
+void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, uint32_t receiveTime) 
 {
 	int32_t ind = 0;
 	switch (id)
@@ -17,6 +17,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			for (int i = 0; i < 4; i++) {
 				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001f;
 			}
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		case 0x201:
@@ -25,6 +26,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			for (int i = 4; i < 8; i++) {
 				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
 			}
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		case 0x202:
@@ -33,6 +35,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			for (int i = 8; i < 12; i++) {
 				dataset->bms.cell_voltage[i] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
 			}
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		case 0x203:
@@ -42,6 +45,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			dataset->bms.cell_voltage[13] = buffer_get_uint16_rev_endian(payload, &ind)*0.0001;
 
 			dataset->bms.battery_voltage = buffer_get_uint16_rev_endian(payload, &ind)*0.001;
+
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		//bms current
@@ -50,6 +55,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			ind = 0;
 			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) + 326.7f;
 			dataset->bms.charge_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 250.0f;
+
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		//bms cell temp
@@ -59,6 +66,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			for (int i = 0; i < 4; i++) {
 				dataset->bms.cell_temp[i] = (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 50.0f;
 			}
+
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		case 0x2A1: //balanceTemp
@@ -67,6 +76,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			for (int i = 0; i < 2; i++) {
 				dataset->bms.balance_temp[i] = (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 50.0f;
 			}
+
+			dataset->bms.last_msg = receiveTime;
 			break;
 		}
 		case 0x2A2: // balancing
@@ -74,6 +85,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			ind = 0;
 			uint16_t isBalancingNum = buffer_get_uint16(payload, &ind);
 			generate_bit_list(14, isBalancingNum, dataset->bms.is_Balancing);
+
+			dataset->bms.last_msg = receiveTime;
 		}
 		//bms (old)
 		case 0x601:
@@ -88,7 +101,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->bms.status.CSS = status_array[2];
 				dataset->bms.min_cel_voltage = buffer_get_float16(payload, 100, &ind);
 				dataset->bms.max_cel_voltage = buffer_get_float16(payload, 100, &ind);
-				dataset->bms.last_msg = dataset->telemetry.unixTime;
+				
+				dataset->bms.last_msg = receiveTime;
 				break;
 			}
 
@@ -99,6 +113,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->bms.battery_current = buffer_get_float16(payload, 100, &ind);
 				dataset->bms.bms_temp = buffer_get_float16(payload, 100, &ind);
 				dataset->bms.SOC = buffer_get_float16(payload, 100, &ind);
+
+				dataset->bms.last_msg = receiveTime;
 				break;
 			}
 		case 0x621:
@@ -106,6 +122,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->bms.cells_temp   = buffer_get_float8(payload, 1, &ind);
 				dataset->bms.env_temp     = buffer_get_float8(payload, 1, &ind);
+
+				dataset->bms.last_msg = receiveTime;
 				break;
 			}
 
@@ -116,6 +134,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->motor.battery_current = ((payload[2]) + 256*(payload[3]))/10;
 				dataset->motor.rpm = ((payload[4]) + 256*(payload[5]) + 65536*(payload[6]))*10;
 				dataset->motor.last_msg = dataset->telemetry.unixTime;
+
+				dataset->motor.last_msg = receiveTime;
 				break;
 			}
 
@@ -125,6 +145,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->motor.controller_temp = payload[4];
 				dataset->motor.motor_temp = payload[5];
 				dataset->motor.battery_temp = payload[6];
+
+				dataset->motor.last_msg = receiveTime;
 				break;
 			}
 
@@ -134,6 +156,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->motor.power_out = ((payload[2]) + 256*(payload[3]))/10;
 				dataset->motor.warning = payload[4] + 256*(payload[5]);
 				dataset->motor.failures = payload[6] + 256*(payload[7]);
+
+				dataset->motor.last_msg = receiveTime;
 				break;
 			}
 
@@ -141,6 +165,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 			{
 				dataset->motor.capacity = payload[0];
 				dataset->motor.term_voltage = ((payload[6]) + 256*(payload[7]))/10;
+
+				dataset->motor.last_msg = receiveTime;
 				break;
 			}
 
@@ -153,6 +179,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->gps.speed      = buffer_get_float16(payload, 100, &ind);
 				dataset->gps.fix		= buffer_get_uint8(payload, &ind);
 				dataset->gps.antenna    = buffer_get_uint8(payload, &ind);
+
+				dataset->gps.last_msg = receiveTime;
 				break;
 			}
 
@@ -161,6 +189,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->gps.lat = buffer_get_float32(payload, 10000, &ind);
 				dataset->gps.lng = buffer_get_float32(payload, 10000, &ind);
+
+				dataset->gps.last_msg = receiveTime;
 				break;
 			}
 
@@ -172,6 +202,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->mppt.current = buffer_get_float16(payload, 100, &ind);
 				dataset->mppt.error   = buffer_get_uint8(payload, &ind);
 				dataset->mppt.cs      = buffer_get_uint8(payload, &ind);
+
+				dataset->mppt.last_msg = receiveTime;
 				break;
 			}
 
@@ -180,6 +212,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->telemetry.unixTime   = buffer_get_uint32(payload, &ind);
 				dataset->telemetry.MTUtemp       = buffer_get_uint8(payload, &ind);
+
+				dataset->telemetry.last_msg = receiveTime;
 				break;
 			}
 
@@ -192,6 +226,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->display.fans = status_array[0];
 
 				dataset->display.temp = buffer_get_uint8(payload, &ind);
+
+				dataset->display.last_msg = receiveTime;
 				break;
 			}
 
@@ -200,6 +236,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				ind = 0;
 				dataset->telemetry.strategyRuntime = buffer_get_uint16(payload, &ind);
 				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
+
+				dataset->telemetry.last_msg = receiveTime;
 				break;
 			}
 		
@@ -212,6 +250,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->esp.mqttStatus = buffer_get_uint8(payload, &ind);
 				dataset->esp.internetConnection = buffer_get_uint8(payload, &ind);
   				dataset->esp.NTPtime = buffer_get_uint32(payload, &ind);
+
+				dataset->esp.last_msg = receiveTime;
 				break;
 			}
 

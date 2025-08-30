@@ -85,7 +85,7 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
       dataFrame->esp.wifiSetupControl = canRxMsg->data[0];
       return;
     }
-    CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame);
+    CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame, millis());
     *newDataFlag = true;
           
     Serial.print(canRxMsg->can_id, HEX); // print ID

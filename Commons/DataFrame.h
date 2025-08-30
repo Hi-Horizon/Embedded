@@ -114,6 +114,8 @@ typedef struct
         // 0 = Normal operation
         // 1 = WiFi Setup mode
         uint8_t wifiSetupControl; 
+
+        uint32_t last_msg;
 } ESP_data;
 
 enum ESP_STATE {

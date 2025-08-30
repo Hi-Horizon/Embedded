@@ -16,7 +16,7 @@
 void initWiFi(DataFrame* dataFrame, espStatus* status);
 bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void()> idleFn);
 void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wifiCredentials, std::function<void()> idleFn);
-void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials);
+bool getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials, unsigned long timeout);
 void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCredentials *wifiCredentials);
 
 #endif

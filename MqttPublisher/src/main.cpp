@@ -68,8 +68,13 @@ void setup() {
   initCan(&mcp2515, &canEspTxMsg, &canWifiCredentialsTxMsg);
   
   dataFrame.esp.status = ESP_REQUESTING_WIFI_CONFIG;
-  sendEspInfoToCan(&mcp2515, &canEspTxMsg, &dataFrame);
-  getWiFiCredentialsFromCan(&mcp2515, &canRxMsg, &wifiCredentials); //TODO: timeout/resend
+  bool wifiConfigReceived = false;
+  while (!wifiConfigReceived) {
+    sendEspInfoToCan(&mcp2515, &canEspTxMsg, &dataFrame);
+    wifiConfigReceived = getWiFiCredentialsFromCan(&mcp2515, &canRxMsg, &wifiCredentials, 5000);
+  }
+  Serial.println(wifiCredentials.ssid);
+  Serial.println(wifiCredentials.password);
   
   dataFrame.esp.status = ESP_WIFI_CONNECT_ATTEMPT;
   connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
@@ -114,14 +119,20 @@ void updateConnectionStatus() {
   
   // first check if internet is still connected. if not, reconnect
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("wifi not connected");
     dataFrame.esp.status = ESP_WIFI_CONNECT_ATTEMPT;
     connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
   }
   
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
+    Serial.println("mqtt not connected");
     dataFrame.esp.status = ESP_CONNECTING_BROKER;  
     mqttReconnect(client, &status, wifiConfigModeListener);
+  }
+
+  if (WiFi.status() == WL_CONNECTED && client->connected()) {
+    dataFrame.esp.status = ESP_OPERATING; 
   }
 }
 

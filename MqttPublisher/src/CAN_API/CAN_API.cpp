@@ -2,7 +2,7 @@
 
 void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg) {
   Serial.println("Initializing CAN");
-  
+
 
   pinMode(D8, OUTPUT);
   digitalWrite(D8, HIGH);
@@ -46,12 +46,13 @@ void parseWifiCredentialsFromBuf(WifiCredentials *wifiCredentials, uint8_t* buf)
   }
 }
 
-uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiCredentials *wifiCredentials) {
+uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiCredentials *wifiCredentials, unsigned long timeout) {
   uint8_t buf[256];
   uint8_t seq = 0;
 
   bool transferComplete=false;
-  while (!transferComplete) {
+  unsigned long startTime = millis();
+  while (!transferComplete && !(millis() - startTime >= timeout)) {
     yield();
     if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
       // debugging purposes
@@ -75,7 +76,7 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
   }
 
   parseWifiCredentialsFromBuf(wifiCredentials, buf);
-  return 1;
+  return transferComplete;
 }
 
 void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, bool* newDataFlag) {

@@ -41,18 +41,18 @@ void initWiFi(DataFrame* dataFrame, espStatus* status) {
   Serial.println("connected");
 }
 
-void getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials) {
+bool getWiFiCredentialsFromCan(MCP2515 *mcp2515, can_frame *rxFrame, WifiCredentials *wifiCredentials, unsigned long timeout) {
   struct can_frame credentialsRequestMsg;
   credentialsRequestMsg.can_id  = 0x752;
   credentialsRequestMsg.can_dlc = 0;
+
   //send request to network for the credentials
   Serial.println("sending request for wifiCredentials");
   mcp2515->sendMessage(&credentialsRequestMsg);
   Serial.println("Sent, listening for response");
-  Serial.println(listenForWiFiCredentialsCan(mcp2515, rxFrame, wifiCredentials));
-  
-  Serial.println(wifiCredentials->ssid);
-  Serial.println(wifiCredentials->password);
+
+  bool received = listenForWiFiCredentialsCan(mcp2515, rxFrame, wifiCredentials, timeout);
+  return received;
 }
 
 void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCredentials *wifiCredentials) {
@@ -131,6 +131,8 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
       }
       prevWifiSetupControl = data->esp.wifiSetupControl;
       lastIdlePerform = millis();
+
+      Serial.println(WiFi.status());
     }
     
     switch(WiFi.status()) {
@@ -141,6 +143,9 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
             break;
         case WL_CONNECT_FAILED:
             data->esp.status = ESP_WIFI_CONNECT_FAILED;
+            break;
+        case WL_NO_SSID_AVAIL:
+            data->esp.status = ESP_WIFI_STA_NOT_FOUND;
             break;
         default:
             break;

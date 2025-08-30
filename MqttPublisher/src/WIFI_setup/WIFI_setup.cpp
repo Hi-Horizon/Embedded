@@ -14,11 +14,9 @@ bool wifiCredentialsReceived = false;
 unsigned long timeSinceReceived = 0;
 
 
-void initWiFi(DataFrame* dataFrame, espStatus* status) {
+void initWiFi(DataFrame* dataFrame) {
   //Try to connect to wifi
   dataFrame->esp.wifiSetupControl = 0;
-
-  status->updateStatus(WIFI_LOGIN_TRY);
 
   WiFi.begin(Wifi_SSID, Wifi_PASSWORD);
 
@@ -106,9 +104,7 @@ void sendWiFICredentialsOverCan(MCP2515 *mcp2515, can_frame *txFrame, WifiCreden
 //* espStatus* status - status struct for ESP
 //* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
 //* std::function<void ()> idleFn - function to perform during the connection loop
-bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void ()> idleFn) {
-  status->updateStatus(WIFI_LOGIN_TRY);
-
+bool connect_wifi(DataFrame *data, WifiCredentials *wc, std::function<void ()> idleFn) {
   WiFi.mode(WIFI_STA);
   WiFi.begin(wc->ssid, wc->password);
 
@@ -162,9 +158,8 @@ bool connect_wifi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::
 //* espStatus* status - status struct for ESP
 //* WifiCredentials* wc - WiFiConfig struct giving the ssid en password
 //* std::function<void ()> idleFn - function to perform during the connection loop
-void configure_WiFi(DataFrame *data, espStatus* status, WifiCredentials *wc, std::function<void()> idleFn) {
+void configure_WiFi(DataFrame *data, WifiCredentials *wc, std::function<void()> idleFn) {
   wifiCredentialsReceived = false;
-  status->updateStatus(WIFI_SEARCH);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP("Hi-Horizon Telemetry", "12345678");

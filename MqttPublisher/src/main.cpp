@@ -10,7 +10,6 @@
 
 #include "wifiConfig.h"
 #include "WIFI_setup/WIFI_setup.h"
-#include <espStatus/espStatus.h>
 
 #include <DataFrame.h>
 #include <buffer.h>
@@ -25,7 +24,6 @@
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
 WifiCredentials newWifiCredentials;
-espStatus status;
 
 // A single, global CertStore which can be used by all connections.
 // Needs to stay live the entire time any of the WiFiClientBearSSLs
@@ -77,13 +75,13 @@ void setup() {
   Serial.println(wifiCredentials.password);
   
   dataFrame.esp.status = ESP_WIFI_CONNECT_ATTEMPT;
-  connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
+  connect_wifi(&dataFrame, &wifiCredentials, wifiConfigModeListener);
 
   dataFrame.esp.status = ESP_NTP_TIME_SYNC;
   initTime(&timeClient, &dataFrame, wifiConfigModeListener);
 
   dataFrame.esp.status = ESP_CONNECTING_BROKER;
-  verifyAndInitCerts(&certStore, bear, &status);
+  verifyAndInitCerts(&certStore, bear);
   client = initMqtt(client, bear);
 
   Serial.println("setup finished");
@@ -121,14 +119,14 @@ void updateConnectionStatus() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("wifi not connected");
     dataFrame.esp.status = ESP_WIFI_CONNECT_ATTEMPT;
-    connect_wifi(&dataFrame, &status, &wifiCredentials, wifiConfigModeListener);
+    connect_wifi(&dataFrame, &wifiCredentials, wifiConfigModeListener);
   }
   
   //then check if esp is still connected with Broker
   else if (!client->connected()) { 
     Serial.println("mqtt not connected");
     dataFrame.esp.status = ESP_CONNECTING_BROKER;  
-    mqttReconnect(client, &status, wifiConfigModeListener);
+    mqttReconnect(client, wifiConfigModeListener);
   }
 
   if (WiFi.status() == WL_CONNECTED && client->connected()) {
@@ -159,11 +157,11 @@ void listenForWifiConfigToggle() {
 void wifi_config_mode() {
   Serial.println("Starting WiFi New Config Mode");
   dataFrame.esp.status = ESP_WIFI_NEW_CONFIG_MODE;
-  configure_WiFi(&dataFrame, &status, &newWifiCredentials, listenForWifiConfigToggle);
+  configure_WiFi(&dataFrame, &newWifiCredentials, listenForWifiConfigToggle);
   //always perform this, only difference being old WiFi connection or new
   dataFrame.esp.status = ESP_WIFI_CONNECT_ATTEMPT;
   if (dataFrame.esp.wifiSetupControl == 1) {
-    if (connect_wifi(&dataFrame, &status, &newWifiCredentials, listenForWifiConfigToggle)) {
+    if (connect_wifi(&dataFrame, &newWifiCredentials, listenForWifiConfigToggle)) {
       // Connected, write to SD, cancel not possible anymore
       sendWiFICredentialsOverCan(&mcp2515, &canWifiCredentialsTxMsg, &newWifiCredentials);
 
@@ -176,7 +174,7 @@ void wifi_config_mode() {
   }
   // If mode is cancelled, attempt to reconnect to old
   if (dataFrame.esp.wifiSetupControl == 0) {
-    connect_wifi(&dataFrame, &status, &wifiCredentials, listenForWifiConfigToggle);
+    connect_wifi(&dataFrame, &wifiCredentials, listenForWifiConfigToggle);
   }
   //done, reset control state
   dataFrame.esp.wifiSetupControl = 0;

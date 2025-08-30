@@ -141,10 +141,8 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
   Serial.println(success);
 }
 
-void mqttReconnect(PubSubClient* client, espStatus* status, std::function<void ()> idleFn) {
+void mqttReconnect(PubSubClient* client, std::function<void ()> idleFn) {
   // Loop until we’re reconnected
-  status->updateStatus(CONNECTING_BROKER);
-
   unsigned long lastIdlePerform = 0;
   unsigned long lastMqttReconnect = 0;
   unsigned long reconnectWaitTime = 5000;
@@ -167,15 +165,12 @@ void mqttReconnect(PubSubClient* client, espStatus* status, std::function<void (
       client->subscribe("testTopic");
     } 
     else {
-      status->updateStatus(BROKER_CONNECTION_FAILED);
       Serial.print("failed, rc = ");
       Serial.print(client->state());
       Serial.println(" try again in 5 seconds");
       Serial.println(WiFi.status());
     }
   }
-
-  status->updateStatus(CONNECTED);
 }
 
 void onMQTTReceive(char* topic, byte* payload, unsigned int length) {

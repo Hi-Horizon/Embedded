@@ -8,8 +8,6 @@ void initTime(NTPClient* timeClient, DataFrame* dataFrame, std::function<void()>
 }
 
 uint32_t setDateTime(std::function<void()> idleFn) {
-  unsigned long lastIdlePerform = 0;
-
   // You can use your own timezone, but the exact time is not used at all.
   // Only the date is needed for validating the certificates.
   // status.updateStatus(SYNCING_NTP);

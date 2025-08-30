@@ -2,9 +2,9 @@
 #define MQTT_API__H_
 
 #include "Arduino.h"
+#include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "wifiConfig.h"
-#include <espStatus/espStatus.h>
 
 #include "DataFrame.h"
 
@@ -12,7 +12,7 @@
 
 void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataFlag, unsigned long* lastMsg);
 PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear);
-void mqttReconnect(PubSubClient* client, espStatus* status, std::function<void ()> idleFn);
+void mqttReconnect(PubSubClient* client, std::function<void ()> idleFn);
 void onMQTTReceive(char* topic, byte* payload, unsigned int length);
 
 #endif

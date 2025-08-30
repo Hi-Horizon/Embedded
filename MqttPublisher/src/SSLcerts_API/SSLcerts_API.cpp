@@ -1,10 +1,9 @@
 #include "SSLcerts_API.h"
 
-void verifyAndInitCerts(BearSSL::CertStore* certStore, BearSSL::WiFiClientSecure* bear, espStatus* status) {
+void verifyAndInitCerts(BearSSL::CertStore* certStore, BearSSL::WiFiClientSecure* bear) {
   //CERT FILE LOADER INIT
   LittleFS.begin();
   //CHECK CERTS
-  status->updateStatus(TESTING_CERTS);
   int numCerts = certStore->initCertStore(LittleFS, PSTR("/certs.idx"), PSTR("/certs.ar"));
   Serial.printf("Number of CA certs read: %d\n", numCerts);
   if (numCerts == 0) {

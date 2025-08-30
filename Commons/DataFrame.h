@@ -20,7 +20,7 @@ typedef struct
         } status;
         //tot hier
         float cell_voltage[14];
-        float is_Balancing[14];
+        bool is_Balancing[14];
         float cell_temp[4];
         float balance_temp[2];
 
@@ -115,6 +115,19 @@ typedef struct
         // 1 = WiFi Setup mode
         uint8_t wifiSetupControl; 
 } ESP_data;
+
+enum ESP_STATE {
+    ESP_START,
+    ESP_REQUESTING_WIFI_CONFIG,
+    ESP_WIFI_CONNECT_ATTEMPT,
+    ESP_WIFI_PASSWORD_FAILED,
+    ESP_WIFI_CONNECT_FAILED,
+    ESP_WIFI_STA_NOT_FOUND,
+    ESP_NTP_TIME_SYNC,
+    ESP_CONNECTING_BROKER,
+    ESP_OPERATING,
+    ESP_WIFI_NEW_CONFIG_MODE,
+};
 
 typedef struct {
 	BMS_data bms;

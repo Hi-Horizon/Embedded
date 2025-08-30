@@ -4,8 +4,8 @@
 #include "Arduino.h"
 #include "FS.h"
 #include "LittleFS.h"
-#include "espStatus/espStatus.h"
+#include <ESP8266WiFi.h>
 
-void verifyAndInitCerts(BearSSL::CertStore* certStore, BearSSL::WiFiClientSecure* bear, espStatus* status);
+void verifyAndInitCerts(BearSSL::CertStore* certStore, BearSSL::WiFiClientSecure* bear);
 
 #endif

@@ -202,14 +202,14 @@ void screen0() {
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
 
-//	if (HAL_GetTick() - data.motor.last_msg > 5000)
-//		screenCharSize += sprintf(screenStr + screenCharSize, "Vba      -");
-//	else
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba      -");
+	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %6.2f", float_overflowCheck(data.bms.battery_voltage, 999.99));
 
-//	if (HAL_GetTick() - data.motor.last_msg > 5000)
-//		screenCharSize += sprintf(screenStr + screenCharSize, "SOC     - ");
-//	else
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC     - ");
+	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%6.2f ", float_overflowCheck(calculateSOC(data.bms.battery_voltage), 99.99));
 
 	if (HAL_GetTick() - data.esp.last_msg > 5000)
@@ -343,7 +343,7 @@ int main(void)
   data.motor.controller_temp = (uint8_t) 255;
   data.bms.cells_temp = 9999999;
 
-  data.bms.battery_voltage = 56.2;
+  data.bms.battery_voltage = 99999999;
   data.bms.charge_current = 9999999;
   data.bms.cell_temp[0] = 9999999;
   data.bms.cell_temp[1] = 9999999;
@@ -383,7 +383,6 @@ int main(void)
 	}
 
 	if (HAL_GetTick() - lastRefresh > 1000L) {
-		data.bms.battery_voltage += 0.10;
 		toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
 
 		if (requestWifiConfigMode == 1) drawDataScreen(2);

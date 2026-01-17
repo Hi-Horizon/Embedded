@@ -90,7 +90,7 @@ void sendDataToEsp(SPI_HandleTypeDef *spi, DataFrame* data) {
 }
 
 void sendDataToEsp2(SPI_HandleTypeDef *spi, DataFrame* data) {
-	dataFrameInBuf(data, buf2);
+	// dataFrameInBuf(data, buf2);
 	sendFrameToEsp(spi, buf2, msg, 19); //1
 	HAL_Delay(50);
 	sendFrameToEsp(spi, buf2+19, msg, 12); //2

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include <buffer/buffer.h>
+#include "buffer/buffer.h"
 #include <stdint.h>
 #include <DataFrame.h>
 

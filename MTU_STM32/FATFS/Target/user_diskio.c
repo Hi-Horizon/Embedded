@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -35,6 +35,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
+#include "sd_spi.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -81,7 +82,10 @@ DSTATUS USER_initialize (
 )
 {
   /* USER CODE BEGIN INIT */
-    return disk_initialize(pdrv);
+  if (pdrv != 0)
+      return STA_NOINIT;
+
+  return (SD_SPI_Init() == SD_OK) ? 0 : STA_NOINIT;
   /* USER CODE END INIT */
 }
 
@@ -95,7 +99,9 @@ DSTATUS USER_status (
 )
 {
   /* USER CODE BEGIN STATUS */
-    return disk_status(pdrv);
+  if (pdrv != 0)
+      return STA_NOINIT;
+  return 0;
   /* USER CODE END STATUS */
 }
 
@@ -115,7 +121,10 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
-    return disk_read(pdrv, buff, sector, count);
+  if (pdrv != 0 || count == 0)  return RES_PARERR;
+  if (!card_initialized)        return RES_NOTRDY;
+
+  return (SD_ReadBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
   /* USER CODE END READ */
 }
 
@@ -136,8 +145,10 @@ DRESULT USER_write (
 )
 {
   /* USER CODE BEGIN WRITE */
-  /* USER CODE HERE */
-    return disk_write(pdrv, buff, sector, count);;
+  if (pdrv || !count)     return RES_PARERR;
+  if (!card_initialized)  return RES_NOTRDY;
+  
+  return (SD_WriteBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
   /* USER CODE END WRITE */
 }
 #endif /* _USE_WRITE == 1 */
@@ -157,7 +168,23 @@ DRESULT USER_ioctl (
 )
 {
   /* USER CODE BEGIN IOCTL */
-    return disk_ioctl(pdrv, cmd, buff);
+  if (pdrv != 0) return RES_PARERR;
+
+  switch (cmd) {
+    case CTRL_SYNC:
+        return RES_OK;
+    case GET_SECTOR_SIZE:
+        *(WORD *)buff = 512;
+        return RES_OK;
+    case GET_SECTOR_COUNT:
+        *(DWORD *)buff = 0x10000; // Example: 32MB SD card (65536 * 512)
+        return RES_OK;
+    case GET_BLOCK_SIZE:
+        *(DWORD *)buff = 1;
+        return RES_OK;
+    default:
+        return RES_PARERR;
+  }
   /* USER CODE END IOCTL */
 }
 #endif /* _USE_IOCTL == 1 */

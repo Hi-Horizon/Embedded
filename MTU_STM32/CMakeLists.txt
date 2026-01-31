@@ -60,6 +60,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/MTU/SD_API.c
     ${CMAKE_SOURCE_DIR}/Core/Src/MTU/troubleshoot.c
     ${CMAKE_SOURCE_DIR}/Core/Src/MTU/util.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/sd_spi.c
 )
 
 # Add include paths

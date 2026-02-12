@@ -42,7 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* Disk status */
-static volatile DSTATUS Stat = STA_NOINIT;
+// static volatile DSTATUS Stat = STA_NOINIT;
 
 /* USER CODE END DECL */
 

@@ -7,7 +7,7 @@
         {
             "type": "stlinkgdbtarget",
             "request": "launch",
-            "name": "STM32Cube: STM32 Launch ST-Link GDB Server",
+            "name": "Debug STM32",
             "origin": "snippet",
             "cwd": "${workspaceFolder}",
             "preBuild": "${command:st-stm32-ide-debug-launch.build}",
@@ -16,7 +16,11 @@
                 {
                     "imageFileName": "${command:st-stm32-ide-debug-launch.get-projects-binary-from-context1}"
                 }
-            ]
+            ],
+            "liveWatch": {
+                "enabled": true,
+                "samplesPerSecond": "4"
+            }
         }
     ]
 }

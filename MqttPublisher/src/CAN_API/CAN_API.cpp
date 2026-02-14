@@ -79,8 +79,21 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
   return transferComplete;
 }
 
-void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, bool* newDataFlag) {
+void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, CanInbox* CANinbox, bool* newDataFlag) {
   if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
+    // get inbox index of id
+    int canIndex = -1;
+    for (int i = 0; i < USED_CAN_MESSAGES; i++) {
+      if (canRxMsg->can_id == CANinbox->ids[i]) {
+        canIndex = i;
+      }
+    }
+    // if a stored index is found, save it and set flag
+    if (canIndex != -1) {
+      memcpy(CANinbox->messages[canIndex], canRxMsg->data, canRxMsg->can_dlc);
+      CANinbox->newMsgFlags[canIndex] = true;
+    }
+
     if (canRxMsg->can_id == 0x754) {
       dataFrame->esp.wifiSetupControl = canRxMsg->data[0];
       return;
@@ -88,15 +101,15 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
     CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame);
     *newDataFlag = true;
           
-    Serial.print(canRxMsg->can_id, HEX); // print ID
-    Serial.print(" "); 
-    Serial.print(canRxMsg->can_dlc, HEX); // print DLC
-    Serial.print(" ");
+    // Serial.print(canRxMsg->can_id, HEX); // print ID
+    // Serial.print(" "); 
+    // Serial.print(canRxMsg->can_dlc, HEX); // print DLC
+    // Serial.print(" ");
     
-    for (int i = 0; i<canRxMsg->can_dlc; i++)  {  // print the data
-      Serial.print(canRxMsg->data[i],HEX);
-      Serial.print(" ");
-    }
+    // for (int i = 0; i<canRxMsg->can_dlc; i++)  {  // print the data
+    //   Serial.print(canRxMsg->data[i],HEX);
+    //   Serial.print(" ");
+    // }
 
     Serial.println();      
   }

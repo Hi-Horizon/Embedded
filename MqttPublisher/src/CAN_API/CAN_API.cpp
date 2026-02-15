@@ -79,12 +79,14 @@ uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiC
   return transferComplete;
 }
 
+uint32_t idMask = 0x1FFFFFFF;
 void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, CanInbox* CANinbox, bool* newDataFlag) {
-  if (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
+  while (mcp2515->readMessage(canRxMsg) == MCP2515::ERROR_OK) {
+    uint32_t canid = canRxMsg->can_id & CAN_EFF_MASK; //mask status bits
     // get inbox index of id
     int canIndex = -1;
     for (int i = 0; i < USED_CAN_MESSAGES; i++) {
-      if (canRxMsg->can_id == CANinbox->ids[i]) {
+      if (canid == CANinbox->ids[i]) {
         canIndex = i;
       }
     }
@@ -98,7 +100,7 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
       dataFrame->esp.wifiSetupControl = canRxMsg->data[0];
       return;
     }
-    CAN_parseMessage(canRxMsg->can_id, canRxMsg->data, dataFrame);
+    CAN_parseMessage(canid, canRxMsg->data, dataFrame);
     *newDataFlag = true;
           
     // Serial.print(canRxMsg->can_id, HEX); // print ID

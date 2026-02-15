@@ -13,6 +13,10 @@ FDCAN_TxHeaderTypeDef WiFiCredentialsHeader;
 FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
 FDCAN_TxHeaderTypeDef GpsCoordinatesHeader;
 
+//FDCAN_TxHeaderTypeDef MockESCHeader;
+//FDCAN_TxHeaderTypeDef MockBatteryVoltageHeader;
+//FDCAN_TxHeaderTypeDef MockBatteryCurrentHeader;
+
 void setCanTxHeaders() {
 	MpptHeader.Identifier 		= 0x711;
 	MpptHeader.IdType 			= FDCAN_STANDARD_ID;
@@ -43,6 +47,24 @@ void setCanTxHeaders() {
 	WiFiConfigModeControl.TxFrameType 		= FDCAN_DATA_FRAME;
 	WiFiConfigModeControl.DataLength 		= FDCAN_DLC_BYTES_8;
 	WiFiConfigModeControl.FDFormat			= FDCAN_CLASSIC_CAN;
+
+//	MockESCHeader.Identifier 		= 0x14A10191;
+//	MockESCHeader.IdType 			= FDCAN_EXTENDED_ID;
+//	MockESCHeader.TxFrameType 		= FDCAN_DATA_FRAME;
+//	MockESCHeader.DataLength 		= FDCAN_DLC_BYTES_8;
+//	MockESCHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+//
+//	MockBatteryVoltageHeader.Identifier 		= 0x203;
+//	MockBatteryVoltageHeader.IdType 			= FDCAN_STANDARD_ID;
+//	MockBatteryVoltageHeader.TxFrameType 		= FDCAN_DATA_FRAME;
+//	MockBatteryVoltageHeader.DataLength 		= FDCAN_DLC_BYTES_8;
+//	MockBatteryVoltageHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+//
+//	MockBatteryCurrentHeader.Identifier 		= 0x204;
+//	MockBatteryCurrentHeader.IdType 			= FDCAN_STANDARD_ID;
+//	MockBatteryCurrentHeader.TxFrameType 		= FDCAN_DATA_FRAME;
+//	MockBatteryCurrentHeader.DataLength 		= FDCAN_DLC_BYTES_8;
+//	MockBatteryCurrentHeader.FDFormat			= FDCAN_CLASSIC_CAN;
 }
 
 void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
@@ -54,6 +76,8 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	buffer_append_uint8(TxData,   data->gps.antenna, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsHeader, TxData);
+
+	HAL_Delay(50);
 
 	ind = 0;
 	buffer_append_float32(TxData,  data->gps.lat, 10000, &ind);
@@ -69,6 +93,33 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	buffer_append_uint8(TxData,    data->mppt.cs, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MpptHeader, TxData);
+//
+//	HAL_Delay(50);
+//
+//	ind = 0;
+//	buffer_append_float16(TxData,  data->motor.battery_voltage, 57.45, &ind);
+//	buffer_append_float16(TxData,  data->motor.battery_current, 10, &ind);
+//	buffer_append_uint32(TxData,    data->motor.rpm, &ind);
+//
+//	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockESCHeader, TxData);
+//
+//	HAL_Delay(50);
+//
+//	ind = 0;
+//	buffer_append_float16(TxData,  data->bms.battery_voltage, 10000, &ind);
+//	buffer_append_float16(TxData,  data->bms.battery_voltage, 10000, &ind);
+//	buffer_append_float16(TxData,  data->bms.battery_voltage, 10000, &ind);
+//	buffer_append_float16(TxData,  data->bms.battery_voltage, 10000, &ind);
+//
+//	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBatteryVoltageHeader, TxData);
+//
+//	HAL_Delay(50);
+//
+//	ind = 0;
+//	buffer_append_float16(TxData,  data->bms.battery_current - 326.7, 100, &ind);
+//	buffer_append_float16(TxData,  data->bms.charge_current + 250.0, 100, &ind);
+//
+//	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBatteryCurrentHeader, TxData);
 }
 
 void sendWiFiCredentialsBuf(FDCAN_HandleTypeDef* hfdcan1, uint8_t* buf, uint8_t length) {

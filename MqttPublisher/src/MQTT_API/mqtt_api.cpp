@@ -40,20 +40,22 @@ uint32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
 
 //send an mqtt message with relevant data to the broker at topic "data"
 void sendDataToBroker(PubSubClient* client, CanInbox* CanInbox, bool* newDataFlag, unsigned long* lastMsg) {
+  if (!(*newDataFlag)) return //do not send if there is no new data
+
   digitalWrite(LED_BUILTIN, LOW);
   
   uint32_t msgSize = buildCanDataMQTTMessage(CanInbox);
   bool success = client->publish("data", msg, msgSize);  
-  // Serial.println("begin mqtt message");
-  // for (uint32_t i = 0; i < msgSize; i++) {
-  //   if (i % 12 == 0) {
-  //     Serial.println();
-  //   }
-  //   Serial.print(msg[i]);
-  //   Serial.print(" ");
-  // }
-  // Serial.println();
-  // Serial.println("end mqtt message");
+  Serial.println("begin mqtt message");
+  for (uint32_t i = 0; i < msgSize; i++) {
+    if (i % 12 == 0) {
+      Serial.println();
+    }
+    Serial.print(msg[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
+  Serial.println("end mqtt message");
 
   digitalWrite(LED_BUILTIN, HIGH);
   

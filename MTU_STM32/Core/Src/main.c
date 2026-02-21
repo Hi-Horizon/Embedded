@@ -347,7 +347,7 @@ while (1)
 	}
 
 	// Uncomment this for dummy data generation
-	 fillRandomData(&data);
+//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

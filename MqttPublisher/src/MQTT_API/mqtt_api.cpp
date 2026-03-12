@@ -3,7 +3,6 @@
 //buffer for sending mqtt messages
 uint8_t msg[MSG_BUFFER_SIZE];
 
-
 PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
   //CONNECT MQTT
   client = new PubSubClient(*bear);
@@ -19,9 +18,11 @@ PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
 // build a MQTT message by concatenating all new CANbus messages, format is as follows:
 // 4 bytes: canid
 // 8 bytes: payload data
+// 2 bytes: crc
 // returns: size of message
 uint32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
   uint32_t index = 0;
+  uint16_t crc = 0;
 
   for (int i = 0; i < USED_CAN_MESSAGES; i++) {
     if (canInbox->newMsgFlags[i]) {
@@ -32,6 +33,9 @@ uint32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
       memcpy(msg + index, canInbox->messages[i], 8);
       index += 8;
       canInbox->newMsgFlags[i] = false;
+      crc = calcCRC16(msg + index - 12, 12, CRC_POLYNOMIAL);
+      memcpy(msg + index, &crc, 2);
+      index += 2;
     }
   }
 
@@ -46,16 +50,16 @@ void sendDataToBroker(PubSubClient* client, CanInbox* CanInbox, bool* newDataFla
   
   uint32_t msgSize = buildCanDataMQTTMessage(CanInbox);
   bool success = client->publish("data", msg, msgSize);  
-  Serial.println("begin mqtt message");
-  for (uint32_t i = 0; i < msgSize; i++) {
-    if (i % 12 == 0) {
-      Serial.println();
-    }
-    Serial.print(msg[i], HEX);
-    Serial.print(" ");
-  }
-  Serial.println();
-  Serial.println("end mqtt message");
+  // Serial.println("begin mqtt message");
+  // for (uint32_t i = 0; i < msgSize; i++) {
+  //   if (i % 12 == 0) {
+  //     Serial.println();
+  //   }
+  //   Serial.print(msg[i], HEX);
+  //   Serial.print(" ");
+  // }
+  // Serial.println();
+  // Serial.println("end mqtt message");
 
   digitalWrite(LED_BUILTIN, HIGH);
   

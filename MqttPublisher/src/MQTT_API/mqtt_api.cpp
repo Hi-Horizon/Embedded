@@ -165,7 +165,7 @@ void buildJSONMQTTMessage(DataFrame* dataFrame) {
     "\"Tbal2\":%.2f,"
     "\"bmsT\":%u"
     "}"
-    , dataFrame->telemetry.unixTime
+    , dataFrame->mtu.unixTime
     , dataFrame->gps.fix
     , dataFrame->gps.lat
     , dataFrame->gps.lng

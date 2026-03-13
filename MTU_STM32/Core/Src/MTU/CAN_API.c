@@ -7,6 +7,7 @@
 
 #include <MTU/CAN_API.h>
 
+FDCAN_TxHeaderTypeDef MTUgeneralHeader;
 FDCAN_TxHeaderTypeDef MpptHeader;
 FDCAN_TxHeaderTypeDef GpsHeader;
 FDCAN_TxHeaderTypeDef WiFiCredentialsHeader;
@@ -14,63 +15,83 @@ FDCAN_TxHeaderTypeDef WiFiConfigModeControl;
 FDCAN_TxHeaderTypeDef GpsCoordinatesHeader;
 
 void setCanTxHeaders() {
-	MpptHeader.Identifier 		= 0x711;
-	MpptHeader.IdType 			= FDCAN_STANDARD_ID;
-	MpptHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MpptHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MpptHeader.FDFormat			= FDCAN_CLASSIC_CAN;
 
-	GpsHeader.Identifier 		= 0x701;
-	GpsHeader.IdType 			= FDCAN_STANDARD_ID;
-	GpsHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	GpsHeader.DataLength 		= FDCAN_DLC_BYTES_6;
-	GpsHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+	GpsHeader.Identifier 				= 0x701;
+	GpsHeader.IdType 					= FDCAN_STANDARD_ID;
+	GpsHeader.TxFrameType 				= FDCAN_DATA_FRAME;
+	GpsHeader.DataLength 				= FDCAN_DLC_BYTES_6;
+	GpsHeader.FDFormat					= FDCAN_CLASSIC_CAN;
 
-	GpsCoordinatesHeader.Identifier 		= 0x702;
-	GpsCoordinatesHeader.IdType 			= FDCAN_STANDARD_ID;
-	GpsCoordinatesHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	GpsCoordinatesHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	GpsCoordinatesHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+	GpsCoordinatesHeader.Identifier 	= 0x702;
+	GpsCoordinatesHeader.IdType 		= FDCAN_STANDARD_ID;
+	GpsCoordinatesHeader.TxFrameType 	= FDCAN_DATA_FRAME;
+	GpsCoordinatesHeader.DataLength 	= FDCAN_DLC_BYTES_8;
+	GpsCoordinatesHeader.FDFormat		= FDCAN_CLASSIC_CAN;
 
-	WiFiCredentialsHeader.Identifier 		= 0x753;
-	WiFiCredentialsHeader.IdType 			= FDCAN_STANDARD_ID;
-	WiFiCredentialsHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	WiFiCredentialsHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	WiFiCredentialsHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+	MpptHeader.Identifier 				= 0x711;
+	MpptHeader.IdType 					= FDCAN_STANDARD_ID;
+	MpptHeader.TxFrameType 				= FDCAN_DATA_FRAME;
+	MpptHeader.DataLength 				= FDCAN_DLC_BYTES_8;
+	MpptHeader.FDFormat					= FDCAN_CLASSIC_CAN;
 
-	WiFiConfigModeControl.Identifier 		= 0x754;
-	WiFiConfigModeControl.IdType 			= FDCAN_STANDARD_ID;
-	WiFiConfigModeControl.TxFrameType 		= FDCAN_DATA_FRAME;
-	WiFiConfigModeControl.DataLength 		= FDCAN_DLC_BYTES_8;
-	WiFiConfigModeControl.FDFormat			= FDCAN_CLASSIC_CAN;
+	MTUgeneralHeader.Identifier 		= 0x721;
+	MTUgeneralHeader.IdType 			= FDCAN_STANDARD_ID;
+	MTUgeneralHeader.TxFrameType 		= FDCAN_DATA_FRAME;
+	MTUgeneralHeader.DataLength 		= FDCAN_DLC_BYTES_8;
+	MTUgeneralHeader.FDFormat			= FDCAN_CLASSIC_CAN;
+
+	WiFiCredentialsHeader.Identifier 	= 0x753;
+	WiFiCredentialsHeader.IdType 		= FDCAN_STANDARD_ID;
+	WiFiCredentialsHeader.TxFrameType 	= FDCAN_DATA_FRAME;
+	WiFiCredentialsHeader.DataLength 	= FDCAN_DLC_BYTES_8;
+	WiFiCredentialsHeader.FDFormat		= FDCAN_CLASSIC_CAN;
+
+	WiFiConfigModeControl.Identifier 	= 0x754;
+	WiFiConfigModeControl.IdType 		= FDCAN_STANDARD_ID;
+	WiFiConfigModeControl.TxFrameType 	= FDCAN_DATA_FRAME;
+	WiFiConfigModeControl.DataLength 	= FDCAN_DLC_BYTES_8;
+	WiFiConfigModeControl.FDFormat		= FDCAN_CLASSIC_CAN;
 }
 
 void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 	uint8_t TxData[8];
 	int32_t ind = 0;
-	buffer_append_float16(TxData, data->gps.distance, 100, &ind);
-	buffer_append_float16(TxData,   data->gps.speed, 100, &ind);
-	buffer_append_uint8(TxData,   data->gps.fix, &ind);
-	buffer_append_uint8(TxData,   data->gps.antenna, &ind);
+	//write payload for GPS message and send
+	buffer_append_float16(TxData, data->gps.distance, 	100, &ind);
+	buffer_append_float16(TxData, data->gps.speed, 		100, &ind);
+	buffer_append_uint8(TxData,   data->gps.fix, 		&ind);
+	buffer_append_uint8(TxData,   data->gps.antenna, 	&ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsHeader, TxData);
 
 	HAL_Delay(50);
 
+	//write payload for GPS position message and send
 	ind = 0;
 	buffer_append_float32(TxData,  data->gps.lat, 10000, &ind);
 	buffer_append_float32(TxData,  data->gps.lng, 10000, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsCoordinatesHeader, TxData);
 
-	ind = 0;
-	buffer_append_float16(TxData,  data->mppt.voltage, 100, &ind);
-	buffer_append_uint16(TxData,  data->mppt.power, &ind);
-	buffer_append_float16(TxData,  data->mppt.current, 100, &ind);
-	buffer_append_uint8(TxData,    data->mppt.error, &ind);
-	buffer_append_uint8(TxData,    data->mppt.cs, &ind);
+	HAL_Delay(50);
 
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MpptHeader, TxData);
+	//write payload for MTUgeneral message and send
+	ind = 0;
+	buffer_append_uint32(TxData,  	data->mtu.unixTime, &ind);
+	buffer_append_uint8(TxData,  	data->mtu.SD_status, &ind);
+	buffer_append_uint8(TxData,  	data->mtu.MTUtemp, &ind);
+
+	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MTUgeneralHeader, TxData);
+
+//	there is no MPPT data
+//	ind = 0;
+//	buffer_append_float16(TxData,  	data->mppt.voltage, 100, &ind);
+//	buffer_append_uint16(TxData,  	data->mppt.power, 	&ind);
+//	buffer_append_float16(TxData,  	data->mppt.current, 100, &ind);
+//	buffer_append_uint8(TxData,    	data->mppt.error, 	&ind);
+//	buffer_append_uint8(TxData,    	data->mppt.cs, 		&ind);
+//
+//	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MpptHeader, TxData);
 }
 
 void sendWiFiCredentialsBuf(FDCAN_HandleTypeDef* hfdcan1, uint8_t* buf, uint8_t length) {

@@ -57,7 +57,7 @@ void sendDataToEsp(SPI_HandleTypeDef *spi, DataFrame* data) {
 	  //frame 1
 	  buffer_append_uint8(buf, 1, &index);
 
-	  buffer_append_uint32(buf, data->telemetry.unixTime, &index);
+	  buffer_append_uint32(buf, data->mtu.unixTime, &index);
 	  buffer_append_uint32(buf, data->mppt.last_msg, &index);
 	  buffer_append_uint32(buf, data->gps.last_msg, &index);
 
@@ -108,7 +108,7 @@ void storeResponse(DataFrame* data, uint8_t* buf, int32_t length) {
     data->esp.status          = buffer_get_uint8(buf, &index);
     data->esp.internetConnection = buffer_get_uint8(buf, &index);
     if (length == 6) {
-        data->telemetry.NTPtime            = buffer_get_uint32(buf, &index);
+        data->mtu.NTPtime            = buffer_get_uint32(buf, &index);
     }
 }
 

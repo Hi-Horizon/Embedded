@@ -88,7 +88,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->bms.status.CSS = status_array[2];
 				dataset->bms.min_cel_voltage = buffer_get_float16(payload, 100, &ind);
 				dataset->bms.max_cel_voltage = buffer_get_float16(payload, 100, &ind);
-				dataset->bms.last_msg = dataset->telemetry.unixTime;
+				dataset->bms.last_msg = dataset->mtu.unixTime;
 				break;
 			}
 
@@ -115,7 +115,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 				dataset->motor.battery_voltage = ((payload[0]) + 256*(payload[1]))/57.45;
 				dataset->motor.battery_current = ((payload[2]) + 256*(payload[3]))/10;
 				dataset->motor.rpm = ((payload[4]) + 256*(payload[5]) + 65536*(payload[6]))*10;
-				dataset->motor.last_msg = dataset->telemetry.unixTime;
+				dataset->motor.last_msg = dataset->mtu.unixTime;
 				break;
 			}
 
@@ -178,8 +178,9 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x721:
 			{
 				ind = 0;
-				dataset->telemetry.unixTime   = buffer_get_uint32(payload, &ind);
-				dataset->telemetry.MTUtemp       = buffer_get_uint8(payload, &ind);
+				dataset->mtu.unixTime   	= buffer_get_uint32(payload, &ind);
+				dataset->mtu.SD_status   	= buffer_get_uint8(payload, &ind);
+				dataset->mtu.MTUtemp       	= buffer_get_uint8(payload, &ind);
 				break;
 			}
 
@@ -198,8 +199,8 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset)
 		case 0x741:
 			{
 				ind = 0;
-				dataset->telemetry.strategyRuntime = buffer_get_uint16(payload, &ind);
-				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
+				dataset->mtu.strategyRuntime = buffer_get_uint16(payload, &ind);
+				dataset->mtu.Pmotor = buffer_get_float16(payload, 100, &ind);
 				break;
 			}
 		

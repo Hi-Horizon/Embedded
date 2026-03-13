@@ -113,7 +113,7 @@ void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame
     //   Serial.print(" ");
     // }
 
-    Serial.println();      
+    // Serial.println();      
   }
 }
 

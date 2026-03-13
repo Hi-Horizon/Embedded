@@ -35,6 +35,9 @@ void fillRandomData(DataFrame* data) {
 	data->motor.failures = 6;
 	data->motor.battery_voltage = 48.9;
 	data->motor.battery_current = 22.5;
+	for (int i = 0; i < 14; i++) {
+		data->bms.cell_voltage[i] = 50.0/14;
+	}
 	data->bms.battery_voltage = 50.0;
 	data->bms.battery_current = -14.3;
 	data->bms.charge_current = 14.3;

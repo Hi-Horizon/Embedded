@@ -167,16 +167,49 @@ int _write(int file, char *ptr, int len)
 /* USER CODE BEGIN 0 */
 
 void screen0() {
+	data.bms.max_cel_voltage = data.bms.cell_voltage[0];
+	data.bms.min_cel_voltage = data.bms.cell_voltage[0];
+	for (int i = 0; i < 14; i++) {
+		float currentcellvoltage = data.bms.cell_voltage[i];
+		if (currentcellvoltage > data.bms.max_cel_voltage) {
+			data.bms.max_cel_voltage = currentcellvoltage;
+		}
+		if (currentcellvoltage < data.bms.min_cel_voltage) {
+			data.bms.min_cel_voltage = currentcellvoltage;
+		}
+	}
+//	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
+	screenCharSize = sprintf(screenStr,
+		"Vbat %2.2f  Cbat %3.0fVmin %1.3fVmax %1.3fCharge %3.0f%11Temp %3.0f/%3.0f/%3.0f/%3.0f",
+		float_overflowCheck(data.bms.battery_voltage, 99.99),
+		float_overflowCheck(data.bms.charge_current, 99.99),
+		float_overflowCheck(data.bms.max_cel_voltage, 9.999),
+		float_overflowCheck(data.bms.min_cel_voltage, 9.999),
+		float_overflowCheck(data.bms.battery_current, 99.99),
+		float_overflowCheck(data.bms.cell_temp[0], 199.99),
+		float_overflowCheck(data.bms.cell_temp[1], 199.99),
+		float_overflowCheck(data.bms.cell_temp[2], 199.99),
+		float_overflowCheck(data.bms.cell_temp[3], 199.99)
+	);
+	for (int i = 0; i < screenCharSize; i++) {
+		lcd_send_data(screenStr[i]);
+	}
+	for (int i = screenCharSize; i < 80; i++) {
+		lcd_send_data(' ');
+	}
+}
+
+void screen3() {
 	float Pmotor = (data.motor.battery_voltage * data.motor.battery_current);
 	float Pzon = data.bms.battery_voltage*data.bms.charge_current;
 	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
 	screenCharSize = sprintf(screenStr,
-		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f WIFI    %02i",
-		uint16_overflowCheck(Pzon, (uint16_t) 999999),
-		float_overflowCheck(Pmotor, 999999),
-		float_overflowCheck(data.motor.rpm, 99999999.99),
-		float_overflowCheck(data.gps.speed, 999.99),
-		float_overflowCheck(data.motor.battery_voltage, 999.99),
+		"Cha %5.1f Loa %5.1fRPM %16.2fVEL%6.2f Vbat %5.2fTmc%6.2f WIFI    %02i",
+		float_overflowCheck(data.bms.charge_current, 999.99),
+		float_overflowCheck(data.bms.battery_current, 999.99),
+		float_overflowCheck(data.bms.max_cel_voltage, 99999999.99),
+		float_overflowCheck(data.bms.min_cel_voltage, 999.99),
+		float_overflowCheck(data.bms.battery_voltage, 999.99),
 		float_overflowCheck(data.motor.controller_temp, 999.99),
 		uint8_overflowCheck(data.esp.status, 99)
 	);

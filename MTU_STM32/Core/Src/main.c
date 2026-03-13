@@ -96,6 +96,7 @@ uint32_t              TxMailbox;
 
 //ESP
 #define ESP_BUF_SIZE 128
+bool validCredentailsRead = false;
 bool sendWiFiCredentialsFlag = false;
 bool WifiCredentialsReceivedFlag = false;
 bool EspWaitForCommand = true;
@@ -245,6 +246,9 @@ int main(void)
 
   //get wifi credentials
   data.mtu.SD_status = readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
+  if (data.mtu.SD_status = FR_OK) {
+	  validCredentailsRead = true;
+  }
 
   //UART INIT
   //clear the RDR register to avoid overrun error
@@ -293,7 +297,7 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
-	if (sendWiFiCredentialsFlag) {
+	if (validCredentailsRead & sendWiFiCredentialsFlag) {
 		sendWiFiCredentialsWithCan();
 		sendWiFiCredentialsFlag = false;
 	}

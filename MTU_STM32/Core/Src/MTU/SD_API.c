@@ -174,9 +174,9 @@ FRESULT saveWifiCredentialsRaw(uint8_t *buf, uint32_t length) {
 }
 
 FRESULT readWifiCredentialsRaw(uint8_t *buf, uint8_t *bytesRead) {
-	f_open(&file, "wifi.txt", FA_READ);
-	FRESULT fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
-	f_close(&file);
+	FRESULT fresult = f_open(&file, "wifi.txt", FA_READ);
+	fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
+	fresult = f_close(&file);
 
 	return fresult;
 }

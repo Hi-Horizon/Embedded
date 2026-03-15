@@ -21,21 +21,19 @@ PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
 // 2 bytes: crc
 // returns: size of message
 uint32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
-  uint32_t index = 0;
+  int32_t index = 0;
   uint16_t crc = 0;
 
   for (int i = 0; i < USED_CAN_MESSAGES; i++) {
     if (canInbox->newMsgFlags[i]) {
       // add id to message
-      memcpy(msg + index, &canInbox->ids[i], 4);
-      index += 4;
+      buffer_append_uint32(msg + index, canInbox->ids[i], &index);
       // add data to message
       memcpy(msg + index, canInbox->messages[i], 8);
       index += 8;
       canInbox->newMsgFlags[i] = false;
       crc = calcCRC16(msg + index - 12, 12, CRC_POLYNOMIAL);
-      memcpy(msg + index, &crc, 2);
-      index += 2;
+      buffer_append_uint16(msg + index, crc, &index);
     }
   }
 

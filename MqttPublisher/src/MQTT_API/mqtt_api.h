@@ -6,6 +6,7 @@
 #include <PubSubClient.h>
 #include "wifiConfig.h"
 #include "CanInbox.h"
+#include "buffer.h"
 #include "CRC.h"
 #include "CRC16.h"
 

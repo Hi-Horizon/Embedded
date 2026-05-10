@@ -246,7 +246,7 @@ int main(void)
 
   //get wifi credentials
   data.mtu.SD_status = readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
-  if (data.mtu.SD_status = FR_OK) {
+  if (data.mtu.SD_status == FR_OK) {
 	  validCredentailsRead = true;
   }
 

@@ -57,7 +57,7 @@ void parseGpsMessage(uint8_t* buf, uint16_t size) {
 void GPS_bufferToDataFrame(DataFrame* data) {
 	//checks if a new message has been parsed from the buffer
 	if (!new_msg) return;
-	data->gps.last_msg = data->telemetry.unixTime;
+	data->gps.last_msg = data->mtu.unixTime;
 	new_msg = false;
 
 	//A is fix, V is no fix
@@ -66,7 +66,7 @@ void GPS_bufferToDataFrame(DataFrame* data) {
 	} else {
 		data->gps.fix = 0;
 	}
-	data->telemetry.strategyRuntime = atof(raw_time);
+	data->mtu.strategyRuntime = atof(raw_time);
 	data->gps.speed = atof(raw_speed_knots) * 1.852; //conversion from knots to km/h
 	data->gps.lat = atof(raw_latitude);
 	data->gps.lng = atof(raw_longitude);

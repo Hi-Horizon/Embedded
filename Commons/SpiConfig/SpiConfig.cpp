@@ -32,7 +32,7 @@ uint8_t calculateChecksum(uint8_t *msg, int32_t messageSize) {
 void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 1;
 
-    dataFrame->telemetry.unixTime           = buffer_get_uint32(buf, &index);
+    dataFrame->mtu.unixTime           = buffer_get_uint32(buf, &index);
     dataFrame->esp.wifiSetupControl   = buffer_get_uint8(buf, &index);
 
     dataFrame->gps.fix              = buffer_get_uint8(buf, &index);
@@ -60,7 +60,7 @@ void dataFrameFromPayload(DataFrame *dataFrame, uint8_t *buf) {
 void espInfoFromPayload(DataFrame *dataFrame, uint8_t *buf) {
     int32_t index = 1;
 
-    dataFrame->telemetry.NTPtime = buffer_get_uint32(buf, &index);
+    dataFrame->mtu.NTPtime = buffer_get_uint32(buf, &index);
     dataFrame->esp.status = buffer_get_uint8(buf, &index);
     dataFrame->esp.mqttStatus = buffer_get_uint8(buf, &index);
     dataFrame->esp.internetConnection = buffer_get_uint8(buf, &index);
@@ -189,7 +189,7 @@ void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len) {
     buffer_append_uint8(buf, SpiHeaderByte, &index);
 
     append_uint8_with_stuffing(buf, 1, &index);
-    append_uint32_with_stuffing(buf, dataFrame->telemetry.unixTime, &index);
+    append_uint32_with_stuffing(buf, dataFrame->mtu.unixTime, &index);
     append_uint8_with_stuffing(buf, dataFrame->esp.wifiSetupControl, &index);
     
     append_uint8_with_stuffing(buf, dataFrame->gps.fix, &index);
@@ -223,7 +223,7 @@ void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf) {
     buffer_append_uint8(buf, SpiHeaderByte, &index);
 
     append_uint8_with_stuffing(buf, 3, &index);
-    append_uint32_with_stuffing(buf, dataFrame->telemetry.NTPtime, &index);
+    append_uint32_with_stuffing(buf, dataFrame->mtu.NTPtime, &index);
     append_uint8_with_stuffing(buf, dataFrame->esp.status, &index);
     append_uint8_with_stuffing(buf, dataFrame->esp.mqttStatus, &index);
     append_uint8_with_stuffing(buf, dataFrame->esp.internetConnection, &index);

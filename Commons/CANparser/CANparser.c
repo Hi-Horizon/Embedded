@@ -53,7 +53,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 		case 0x204:
 		{
 			ind = 0;
-			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) + 326.7f;
+			dataset->bms.battery_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 326.7f;
 			dataset->bms.charge_current 	= (buffer_get_uint16_rev_endian(payload, &ind)*0.01) - 250.0f;
 
 			dataset->bms.last_msg = receiveTime;
@@ -133,7 +133,6 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 				dataset->motor.battery_voltage = ((payload[0]) + 256*(payload[1]))/57.45;
 				dataset->motor.battery_current = ((payload[2]) + 256*(payload[3]))/10;
 				dataset->motor.rpm = ((payload[4]) + 256*(payload[5]) + 65536*(payload[6]))*10;
-				dataset->motor.last_msg = dataset->telemetry.unixTime;
 
 				dataset->motor.last_msg = receiveTime;
 				break;
@@ -210,10 +209,11 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 		case 0x721:
 			{
 				ind = 0;
-				dataset->telemetry.unixTime   = buffer_get_uint32(payload, &ind);
-				dataset->telemetry.MTUtemp       = buffer_get_uint8(payload, &ind);
-
-				dataset->telemetry.last_msg = receiveTime;
+				dataset->mtu.unixTime   	= buffer_get_uint32(payload, &ind);
+				dataset->mtu.SD_status   	= buffer_get_uint8(payload, &ind);
+				dataset->mtu.MTUtemp       	= buffer_get_uint8(payload, &ind);
+        
+        dataset->telemetry.last_msg = receiveTime;
 				break;
 			}
 

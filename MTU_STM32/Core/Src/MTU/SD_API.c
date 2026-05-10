@@ -40,7 +40,7 @@ FRESULT writeDataHeaderToSD() {
 		"ESC_batteryVoltage,"
 		"ESC_InputCurrent,"
 		"BMS_batteryVoltage,"
-		"BMS_batteryCurrentCharge"
+		"BMS_batteryCurrentCharge,"
 		"BMS_batteryCurrent,"
 		"min_cell_voltage,"
 		"max_cell_voltage,"
@@ -91,7 +91,7 @@ FRESULT writeDataHeaderToSD() {
 FRESULT writeDataFrameToSD(DataFrame* data) {
 	char row[1024];
 	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
-		data->telemetry.unixTime,
+		data->mtu.unixTime,
 		data->esp.NTPtime,
 		data->gps.fix,
 		data->gps.lat,
@@ -132,9 +132,9 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 	row[size] = '\n';
 	size++;
 
-	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
-	FRESULT fresult = f_write(&file, &row, size, NULL);
-	f_close(&file);
+	FRESULT fresult = f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	fresult = f_write(&file, &row, size, NULL);
+	fresult = f_close(&file);
 
 	return fresult;
 }
@@ -174,9 +174,9 @@ FRESULT saveWifiCredentialsRaw(uint8_t *buf, uint32_t length) {
 }
 
 FRESULT readWifiCredentialsRaw(uint8_t *buf, uint8_t *bytesRead) {
-	f_open(&file, "wifi.txt", FA_READ);
-	FRESULT fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
-	f_close(&file);
+	FRESULT fresult = f_open(&file, "wifi.txt", FA_READ);
+	fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
+	fresult = f_close(&file);
 
 	return fresult;
 }

@@ -19,7 +19,7 @@ extern "C" {
 
 bool parseFrame(DataFrame *dataFrame, WifiCredentials *wifiCredentials, uint8_t *buf, size_t len);
 
-void createFrame(DataFrame *dataFrame, uint8_t *buf, size_t len);
+void createFrame(const DataFrame *dataFrame, uint8_t *buf, size_t len);
 void createESPInfoFrame(DataFrame *dataFrame, uint8_t *buf);
 void createWiFiCredentialsFrame(WifiCredentials *wc, uint8_t *buf);
 

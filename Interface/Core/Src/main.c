@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdbool.h"
 #include "i2c-lcd.h"
+#include "ez-soc.h"
 #include <DataFrame.h>
 #include <CANparser/CANparser.h>
 #include <stdio.h>
@@ -82,8 +83,8 @@ bool blockWifiBtn = false;
 uint32_t lastWifiPress = 0;
 
 unsigned long lastRefresh = 0;
-char screenStr[80];
-int screenCharSize;
+char screenStr[81];
+int screenCharSize = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,7 +104,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	if (RxHeader.Identifier == 0x753) {
 		requestWifiConfigMode = 0;
 	}
-	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+	CAN_parseMessage(RxHeader.Identifier, RxData, &data, HAL_GetTick());
 }
 
 void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, bool requestWifiConfigMode) {
@@ -190,18 +191,56 @@ void mainScreen() {
 	float Vbat = chooseDataSource(data.bms.battery_voltage, data.bms.last_msg, data.motor.battery_voltage, data.motor.last_msg);
 	float Abat = chooseDataSource(data.bms.battery_current, data.bms.last_msg, data.motor.battery_current, data.motor.last_msg);
 
-	float Pmotor = (Vbat * Abat);
-	float Pzon = Vbat*data.bms.charge_current;
-	screenCharSize = sprintf(screenStr,
-		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fSD%02i   WIFI   %02i",
-		uint16_overflowCheck(Pzon, (uint16_t) 999999),
-		float_overflowCheck(Pmotor, 999999),
-		float_overflowCheck(data.motor.rpm, 99999999.99),
-		float_overflowCheck(data.gps.speed, 999.99),
-		float_overflowCheck(Vbat, 999.99),
-		float_overflowCheck(data.motor.controller_temp, 99),
-		uint8_overflowCheck(data.esp.status, 99)
-	);
+void screen0() {
+	float Pmotor = (data.motor.battery_voltage * data.motor.battery_current);
+	float Pzon = data.bms.battery_voltage*data.bms.charge_current;
+//	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
+//	screenCharSize += sprintf(screenStr,
+//		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f WIFI    %02i",
+//		uint16_overflowCheck(Pzon, (uint16_t) 999999),
+//		float_overflowCheck(Pmotor, 999999),
+//		float_overflowCheck(data.motor.rpm, 99999999.99),
+//		float_overflowCheck(data.gps.speed, 999.99),
+//		float_overflowCheck(data.motor.battery_voltage, 999.99),
+//		float_overflowCheck(data.motor.controller_temp, 999.99),
+//		uint8_overflowCheck(data.esp.status, 99)
+//	);
+	screenCharSize = 0;
+	if (HAL_GetTick() - data.bms.last_msg > 5000)
+		screenCharSize += sprintf(screenStr, "Pin     - ");
+	else
+		screenCharSize += sprintf(screenStr, "Pin %5i ", uint16_overflowCheck(Pzon, (uint16_t) 999999));
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "Pou      -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "Pou %6.0f", float_overflowCheck(Pmotor, 999999));
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM                -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM %16.2f", float_overflowCheck(data.motor.rpm, 99999999.99));
+
+	if (HAL_GetTick() - data.gps.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL     - ");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba      -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %6.2f", float_overflowCheck(data.bms.battery_voltage, 999.99));
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC     - ");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%6.2f ", float_overflowCheck(calculateSOC(data.bms.battery_voltage), 99.99));
+
+	if (HAL_GetTick() - data.esp.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI    %02i", uint8_overflowCheck(data.esp.status, 99));
+
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);
 	}
@@ -362,7 +401,7 @@ int main(void)
   data.motor.controller_temp = (uint8_t) 255;
   data.bms.cells_temp = 9999999;
 
-  data.bms.battery_voltage = 9999999;
+  data.bms.battery_voltage = 99999999;
   data.bms.charge_current = 9999999;
   data.bms.cell_temp[0] = 9999999;
   data.bms.cell_temp[1] = 9999999;
@@ -370,6 +409,11 @@ int main(void)
   data.bms.cell_temp[3] = 9999999;
 
   data.esp.status = 99;
+
+  data.bms.last_msg = -5000;
+  data.motor.last_msg = -5000;
+  data.gps.last_msg = -5000;
+  data.esp.last_msg = -5000;
   /* USER CODE END 2 */
 
   /* Infinite loop */

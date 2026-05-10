@@ -184,7 +184,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	if (listenForWiFiCredentialsCan(RxHeader.Identifier, RxData, wifiCredentialsBuf, &wifiCredentialsRxLength, &WifiCredentialsReceivedFlag, &rxWifiCredSeq) == 0) {
 		rxWifiCredSeq = 0;
 	}
-	CAN_parseMessage(RxHeader.Identifier, RxData, &data, data.telemetry.unixTime);
+	CAN_parseMessage(RxHeader.Identifier, RxData, &data, data.mtu.unixTime);
 }
 
 void sendWiFiCredentialsWithCan() {

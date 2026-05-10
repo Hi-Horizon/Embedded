@@ -213,7 +213,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 				dataset->mtu.SD_status   	= buffer_get_uint8(payload, &ind);
 				dataset->mtu.MTUtemp       	= buffer_get_uint8(payload, &ind);
         
-        dataset->telemetry.last_msg = receiveTime;
+				dataset->mtu.last_msg = receiveTime;
 				break;
 			}
 
@@ -234,10 +234,10 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 		case 0x741:
 			{
 				ind = 0;
-				dataset->telemetry.strategyRuntime = buffer_get_uint16(payload, &ind);
-				dataset->telemetry.Pmotor = buffer_get_float16(payload, 100, &ind);
+				dataset->mtu.strategyRuntime = buffer_get_uint16(payload, &ind);
+				dataset->mtu.Pmotor = buffer_get_float16(payload, 100, &ind);
 
-				dataset->telemetry.last_msg = receiveTime;
+				dataset->mtu.last_msg = receiveTime;
 				break;
 			}
 		

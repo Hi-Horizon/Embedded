@@ -8,13 +8,13 @@
 #include "propeller_efficiency.h"
 
 //Js_Kq relations of both propellers
-int werkpaard_Js[WERKPAARD_JS_KQ_LEN] = {
+float werkpaard_Js[WERKPAARD_JS_KQ_LEN] = {
   1.15020676147227,  1.14768020207723,  1.14515364268218,  1.14262708328713,  1.14010052389209,  1.13757396449704,  1.08757396449704,  1.03757396449704,  0.987573964497041,  0.937573964497041,
   0.887573964497041,  0.837573964497041,  0.787573964497041,  0.737573964497041,  0.687573964497041,  0.637573964497041,  0.587573964497041,  0.537573964497041,  0.487573964497041,  0.437573964497041,
   0.387573964497041,  0.337573964497041,  0.287573964497041,  0.237573964497041,  0.187573964497041,  0.137573964497041,  0.0875739644970412,  0.0375739644970412,  0.0275739644970412,
 };
 
-int werkpaard_Kq[WERKPAARD_JS_KQ_LEN] = {
+float werkpaard_Kq[WERKPAARD_JS_KQ_LEN] = {
   0.0008867353211403,  0.0009878209640272,  0.0010886571792766,  0.0011892395964311,  0.0012894784476471,  0.0013814618485967,  0.0033247985302686,  0.005109094622906,  0.0067846437614095,  0.0083273558998353,
   0.0097315141651415,  0.0110005352698165,  0.0121418702147329,  0.0131530126494345,  0.0140363281590002,  0.0147929434103211,  0.0154181369678934,  0.0159039119732154,  0.0162601584437689,  0.0165190481728021,
   0.0167221762078813,  0.0168862179463551,  0.0170310041670481,  0.017238111155613,  0.017368638172246,  0.017558087009042,  0.01778642435467,  0.017983782643631,  0.0180285582400816,
@@ -34,7 +34,7 @@ float beuker_Kq[BEUKER_JS_KQ_LEN] = {
 
 // Find index of closest x in x_vals to target.
 // Assumes x_vals is sorted in ascending order.
-int binary_search_closest(const float *x_vals, int len, float target) {
+int Propbinary_search_closest(float *x_vals, int len, float target) {
     int low = 0;
     int high = (int)len - 1;
 
@@ -59,7 +59,7 @@ int binary_search_closest(const float *x_vals, int len, float target) {
 }
 
 
-float linearInterpolation(float* xs, float* ys, int index1, int index2, float Js) {
+float ProplinearInterpolation(float* xs, float* ys, int index1, int index2, float Js) {
     float slope = (ys[index2] - ys[index1])/(xs[index2] - xs[index1]);
     return ys[index1] + slope*(Js - xs[index1]);
 }
@@ -69,12 +69,12 @@ float Js_to_KQ_lookup(float Js, uint8_t propeller) {
 	//get from a table
 	switch(propeller) {
 		case PROP_BEUKER: //TODO, pas aan naar goede array!
-			closestInd = binary_search_closest(beuker_Js, JS_KQ_LEN, Js);
-			return linearInterpolation(beuker_Js, beuker_Kq, closestInd, closestInd + 1, Js);
+			closestInd = Propbinary_search_closest(beuker_Js, BEUKER_JS_KQ_LEN, Js);
+			return ProplinearInterpolation(beuker_Js, beuker_Kq, closestInd, closestInd + 1, Js);
 		case PROP_WERKPAARD:
 		default:
-			closestInd = binary_search_closest(werkpaard_Js, JS_KQ_LEN, Js);
-			return linearInterpolation(werkpaard_Js, werkpaard_Kq, closestInd, closestInd + 1, Js);
+			closestInd = Propbinary_search_closest(werkpaard_Js, WERKPAARD_JS_KQ_LEN, Js);
+			return ProplinearInterpolation(werkpaard_Js, werkpaard_Kq, closestInd, closestInd + 1, Js);
 	}
 	return -1;
 }

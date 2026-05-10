@@ -28,6 +28,7 @@
 #include <CANparser/CANparser.h>
 #include <stdio.h>
 #include <string.h>
+#include "propeller_efficiency.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -143,7 +144,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 // @param timeSource2, 	time of last_msg from datasource with 2nd priority
 // @returns, value from the chosen datasource
 //
-float chooseDataSource(source1, timeSource1, source2, timeSource2) {
+float chooseDataSource(float source1, uint32_t timeSource1, float source2, uint32_t timeSource2) {
 	//if lastMsg was less than 3s ago, return dataSource value
 	if (data.mtu.unixTime - timeSource1 < 3000) {
 		return source1;
@@ -189,11 +190,13 @@ int _write(int file, char *ptr, int len)
 /* USER CODE BEGIN 0 */
 void mainScreen() {
 	float Vbat = chooseDataSource(data.bms.battery_voltage, data.bms.last_msg, data.motor.battery_voltage, data.motor.last_msg);
-	float Abat = chooseDataSource(data.bms.battery_current, data.bms.last_msg, data.motor.battery_current, data.motor.last_msg);
 
-void screen0() {
 	float Pmotor = (data.motor.battery_voltage * data.motor.battery_current);
-	float Pzon = data.bms.battery_voltage*data.bms.charge_current;
+	float Pzon = Vbat*data.bms.charge_current;
+
+	float beukerEfficiency 		= calc_propeller_efficiency(Pmotor, data.motor.rpm, data.gps.speed, PROP_BEUKER);
+	float werkpaardEfficiency 	= calc_propeller_efficiency(Pmotor, data.motor.rpm, data.gps.speed, PROP_WERKPAARD);
+
 //	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
 //	screenCharSize += sprintf(screenStr,
 //		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f WIFI    %02i",
@@ -216,25 +219,33 @@ void screen0() {
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "Pou %6.0f", float_overflowCheck(Pmotor, 999999));
 
-	if (HAL_GetTick() - data.motor.last_msg > 5000)
-		screenCharSize += sprintf(screenStr + screenCharSize, "RPM                -");
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.gps.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:--/-- ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "RPM %16.2f", float_overflowCheck(data.motor.rpm, 99999999.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:%2.0f/%2.0f",
+			float_overflowCheck(werkpaardEfficiency, 99),
+			float_overflowCheck(beukerEfficiency, 99)
+		);
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM ------");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM %6.0f", float_overflowCheck(data.motor.rpm, 999999));
 
 	if (HAL_GetTick() - data.gps.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL     - ");
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
 
-	if (HAL_GetTick() - data.motor.last_msg > 5000)
-		screenCharSize += sprintf(screenStr + screenCharSize, "Vba      -");
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %6.2f", float_overflowCheck(data.bms.battery_voltage, 999.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%6.2f ", float_overflowCheck(calculateSOC(Vbat), 99.99));
 
-	if (HAL_GetTick() - data.motor.last_msg > 5000)
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC     - ");
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%6.2f ", float_overflowCheck(calculateSOC(data.bms.battery_voltage), 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %6.2f", float_overflowCheck(Vbat, 999.99));
 
 	if (HAL_GetTick() - data.esp.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");
@@ -287,7 +298,7 @@ void batteryStatisticsScreen() {
 	}
 //	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
 	screenCharSize = sprintf(screenStr,
-		"Vbat %2.2f  Cbat %3.0fVmin %1.3fVmax %1.3fCharge %3.0f%11Temp %3.0f/%3.0f/%3.0f/%3.0f",
+		"Vbat %2.2f  Cbat %3.0fVmin %1.3fVmax %1.3fCharge %3.0f%10 Temp %3.0f/%3.0f/%3.0f/%3.0f",
 		float_overflowCheck(data.bms.battery_voltage, 99.99),
 		float_overflowCheck(data.bms.charge_current, 99.99),
 		float_overflowCheck(data.bms.max_cel_voltage, 9.999),

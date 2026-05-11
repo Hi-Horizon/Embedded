@@ -146,9 +146,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 //
 float chooseDataSource(float source1, uint32_t timeSource1, float source2, uint32_t timeSource2) {
 	//if lastMsg was less than 3s ago, return dataSource value
-	if (data.mtu.unixTime - timeSource1 < 3000) {
+	if ((HAL_GetTick() - timeSource1) < 3000) {
 		return source1;
-	} else if (data.mtu.unixTime - timeSource2 < 3000){
+	} else if ((HAL_GetTick() - timeSource2) < 3000){
 		return  source2;
 	} else {
 		return -1;
@@ -222,7 +222,7 @@ void mainScreen() {
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.gps.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:--/-- ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:%2.0f/%2.0f",
+		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:%02.0f/%02.0f ",
 			float_overflowCheck(werkpaardEfficiency, 99),
 			float_overflowCheck(beukerEfficiency, 99)
 		);
@@ -240,12 +240,12 @@ void mainScreen() {
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%6.2f ", float_overflowCheck(calculateSOC(Vbat), 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC %5.2f ", float_overflowCheck(calculateSOC(Vbat), 99.99));
 
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %6.2f", float_overflowCheck(Vbat, 999.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99));
 
 	if (HAL_GetTick() - data.esp.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");

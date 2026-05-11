@@ -39,6 +39,7 @@ FRESULT writeDataHeaderToSD() {
 		"ESC_failures,"
 		"ESC_batteryVoltage,"
 		"ESC_InputCurrent,"
+		"ESC_rpm,"
 		"BMS_batteryVoltage,"
 		"BMS_batteryCurrentCharge,"
 		"BMS_batteryCurrent,"
@@ -90,7 +91,7 @@ FRESULT writeDataHeaderToSD() {
 
 FRESULT writeDataFrameToSD(DataFrame* data) {
 	char row[1024];
-	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
+	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.0f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
 		data->mtu.unixTime,
 		data->esp.NTPtime,
 		data->gps.fix,
@@ -102,6 +103,7 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 		data->motor.failures,
 		data->motor.battery_voltage,
 		data->motor.battery_current,
+		data->motor.rpm,
 		data->bms.battery_voltage,
 		data->bms.battery_current,
 		data->bms.charge_current,

@@ -237,12 +237,12 @@ void mainScreen() {
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
 
-	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC %5.2f ", float_overflowCheck(calculateSOC(Vbat), 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99));
 
-	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.bms.last_msg > 5000))
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99));

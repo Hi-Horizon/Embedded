@@ -90,6 +90,10 @@ float linearInterpolation(int index1, int index2, uint16_t VBatInt) {
 float calculateSOC(float Vbat) {
 	uint16_t VbatInt = (uint16_t) floor(Vbat*100);
 	int closestInd = binary_search_closest(Battery_voltages, 200, VbatInt);
-	return linearInterpolation(closestInd, closestInd + 1, VbatInt)/100.0f;
+	float soc = linearInterpolation(closestInd, closestInd + 1, VbatInt)/100.0f;
+	if isnan(soc) {
+		return 0;
+	}
+	return soc;
 }
 

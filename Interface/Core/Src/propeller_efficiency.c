@@ -90,6 +90,10 @@ float calc_propeller_efficiency(float P_motor, float rpm, float v_s, uint8_t pro
 	// rho is set to 1000, density of water
 	float Q = K_Q * ( 1000* pow(n, 2) * pow(D, 5) );
 	float P_in = 2 * M_PI * n * Q;
-	return P_in / P_motor;
+	float efficiency = P_in / P_motor;
+	if isnan(efficiency) {
+		return 0;
+	}
+	return efficiency;
 }
 

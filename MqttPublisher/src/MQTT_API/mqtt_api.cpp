@@ -20,20 +20,20 @@ PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
 // 8 bytes: payload data
 // 2 bytes: crc
 // returns: size of message
-uint32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
+int32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
   int32_t index = 0;
   uint16_t crc = 0;
 
   for (int i = 0; i < USED_CAN_MESSAGES; i++) {
     if (canInbox->newMsgFlags[i]) {
       // add id to message
-      buffer_append_uint32(msg + index, canInbox->ids[i], &index);
+      buffer_append_uint32(msg, canInbox->ids[i], &index);
       // add data to message
       memcpy(msg + index, canInbox->messages[i], 8);
       index += 8;
       canInbox->newMsgFlags[i] = false;
       crc = calcCRC16(msg + index - 12, 12, CRC_POLYNOMIAL);
-      buffer_append_uint16(msg + index, crc, &index);
+      buffer_append_uint16(msg, crc, &index);
     }
   }
 
@@ -46,7 +46,7 @@ void sendDataToBroker(PubSubClient* client, CanInbox* CanInbox, bool* newDataFla
 
   digitalWrite(LED_BUILTIN, LOW);
   
-  uint32_t msgSize = buildCanDataMQTTMessage(CanInbox);
+  int32_t msgSize = buildCanDataMQTTMessage(CanInbox);
   bool success = client->publish("data", msg, msgSize);  
   // Serial.println("begin mqtt message");
   // for (uint32_t i = 0; i < msgSize; i++) {

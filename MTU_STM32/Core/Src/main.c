@@ -96,6 +96,7 @@ uint32_t              TxMailbox;
 
 //ESP
 #define ESP_BUF_SIZE 128
+bool validCredentailsRead = false;
 bool sendWiFiCredentialsFlag = false;
 bool WifiCredentialsReceivedFlag = false;
 bool EspWaitForCommand = true;
@@ -183,7 +184,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	if (listenForWiFiCredentialsCan(RxHeader.Identifier, RxData, wifiCredentialsBuf, &wifiCredentialsRxLength, &WifiCredentialsReceivedFlag, &rxWifiCredSeq) == 0) {
 		rxWifiCredSeq = 0;
 	}
-	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+	CAN_parseMessage(RxHeader.Identifier, RxData, &data, data.mtu.unixTime);
 }
 
 void sendWiFiCredentialsWithCan() {
@@ -191,29 +192,7 @@ void sendWiFiCredentialsWithCan() {
 	sendWiFiCredentialsBuf(&hfdcan1, wifiCredentialsBuf, wifiCredentialsLength);
 }
 
-
 uint8_t espParseBuf[ESP_BUF_SIZE];
-// commented as this spi line is not used anymore
-//void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
-//{
-//		nextMsgId = esp_rx_buf[0];
-//		//prep next message
-//		switch (nextMsgId) {
-//			case 1:
-//				createFrame(&data, esp_tx_buf, sizeof(esp_tx_buf));
-//				espValidConn = parseFrame(&data, &wifiCredentials, esp_rx_buf + 1, sizeof(esp_rx_buf) - 1);
-//				break;
-//			case 2: //request for wifiCredentials
-//				createWiFiCredentialsFrame(&wifiCredentials, esp_tx_buf);
-//				break;
-//			case 3: //receiving new WiFi credentials, on succes flag to write new credentials to sd
-//				memcpy(espParseBuf, esp_rx_buf, ESP_BUF_SIZE);
-//				needToSaveWiFiConfig = parseFrame(&data, &wifiCredentials, espParseBuf + 1, sizeof(espParseBuf) - 1);
-//				data.telemetry.wifiSetupControl = 0;
-//				break;
-//		}
-//		HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-//}
 
 /* USER CODE END PFP */
 
@@ -263,10 +242,13 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   //SD INIT
-  sdResult = initSD(&fs, &total, &free_space);
+  data.mtu.SD_status = initSD(&fs, &total, &free_space);
 
   //get wifi credentials
-  sdResult = readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
+  data.mtu.SD_status = readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
+  if (data.mtu.SD_status == FR_OK) {
+	  validCredentailsRead = true;
+  }
 
   //UART INIT
   //clear the RDR register to avoid overrun error
@@ -283,9 +265,6 @@ int main(void)
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
-  //listen for command Id. commented as this spi line is not used anymore
-//  HAL_SPI_TransmitReceive_DMA(&hspi2, esp_tx_buf, esp_rx_buf, ESP_BUF_SIZE);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -300,19 +279,12 @@ while (1)
 
 	//general tasks
 	if (HAL_GetTick() - lastTaskPerform > 1000) {
-		writeDataFrameToSD(&data);
+		data.mtu.SD_status = writeDataFrameToSD(&data);
 		sendToCan(&hfdcan1, &data);
 		GPS_bufferToDataFrame(&data);
 
 		lastTaskPerform = HAL_GetTick();
 	}
-
-	//bms data requesting
-//	if (HAL_GetTick() - lastMPPTread > 500) {
-//		HAL_UART_Receive_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
-//		requestBmsData(&huart1, MPPT_buf);
-//		lastMPPTread = HAL_GetTick();
-//	}
 
 	//if gps has overrun error, clear rdr buffer
 	if (huart5.ErrorCode & 8) {
@@ -325,7 +297,7 @@ while (1)
 		(void)tempUARTrdr;
 	}
 
-	if (sendWiFiCredentialsFlag) {
+	if (validCredentailsRead & sendWiFiCredentialsFlag) {
 		sendWiFiCredentialsWithCan();
 		sendWiFiCredentialsFlag = false;
 	}
@@ -347,7 +319,7 @@ while (1)
 	}
 
 	// Uncomment this for dummy data generation
-	// fillRandomData(&data);
+//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

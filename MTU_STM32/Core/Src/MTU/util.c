@@ -24,5 +24,5 @@ void getRTCUnixTime(RTC_HandleTypeDef* hrtc, DataFrame* data) {
 	tm.tm_mday = 1;
 	tm.tm_mon = 0;
 	tm.tm_year = 70;
-	data->telemetry.unixTime = mktime(&tm); //convert a segmented timestamp to a unixTimeStamp
+	data->mtu.unixTime = mktime(&tm); //convert a segmented timestamp to a unixTimeStamp
 }

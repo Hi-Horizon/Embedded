@@ -62,7 +62,7 @@ void parseBmsFrame(DataFrame* data, const uint8_t* buf) {
 	parseBmsMessage(data, buf + 8, 8);
 	parseBmsMessage(data, buf + 16, 6);
 	parseBmsMessage(data, buf + 22, 6);
-	data->bms.last_msg = data->telemetry.unixTime;
+	data->bms.last_msg = data->mtu.unixTime;
 }
 
 void requestBmsData(UART_HandleTypeDef *husart, uint8_t *buf) {

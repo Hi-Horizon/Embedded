@@ -12,6 +12,9 @@ FATFS *pfs;
 DWORD fre_clust;
 FIL file;
 
+uint32_t logNum = 0;
+char dataLogFileName[32] = {};
+
 FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 	FRESULT status = FR_OK;
 	status = f_mount(fs,"/",1);
@@ -20,6 +23,19 @@ FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 
 	total[0] = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space[0] = (uint32_t)(fre_clust * pfs->csize * 0.5);
+
+	//read next fileNumber from metadata
+	status = f_open(&file, ".metadata", FA_READ);
+	status = f_read(&file, &logNum, 4, NULL);
+	status = f_close(&file);
+
+	//write + 1 to metadata fileNumber
+	logNum = logNum + 1;
+	status = f_open(&file, ".metadata", FA_OPEN_ALWAYS | FA_WRITE);
+	status = f_write(&file, &logNum, 4, NULL);
+	status = f_close(&file);
+
+	sprintf(dataLogFileName, "dataLog_%lu.csv", logNum);
 
 	writeDataHeaderToSD();
 	return status;
@@ -82,7 +98,7 @@ FRESULT writeDataHeaderToSD() {
 		"Bal_temp_1,"
 		"Bal_temp_2,"
 		"\n";
-	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	f_open(&file, dataLogFileName, FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, header, strlen(header), NULL);
 	f_close(&file);
 
@@ -134,7 +150,7 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 	row[size] = '\n';
 	size++;
 
-	FRESULT fresult = f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	FRESULT fresult = f_open(&file, dataLogFileName, FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	fresult = f_write(&file, &row, size, NULL);
 	fresult = f_close(&file);
 

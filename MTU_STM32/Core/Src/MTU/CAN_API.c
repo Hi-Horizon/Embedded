@@ -64,16 +64,12 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsHeader, TxData);
 
-	HAL_Delay(50);
-
 	//write payload for GPS position message and send
 	ind = 0;
 	buffer_append_float32(TxData,  data->gps.lat, 10000, &ind);
 	buffer_append_float32(TxData,  data->gps.lng, 10000, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsCoordinatesHeader, TxData);
-
-	HAL_Delay(50);
 
 	//write payload for MTUgeneral message and send
 	ind = 0;

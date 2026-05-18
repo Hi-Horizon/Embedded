@@ -75,23 +75,22 @@ typedef struct
         bool fans;
         uint8_t requestWifiSetup;
         uint32_t last_msg;
-} Screen_data;
+} Display_data;
 
 typedef struct
 {
-        uint32_t unixTime;
-        uint32_t NTPtime;
-        //kan weg
-        uint32_t localRuntime;
-        
-        uint8_t SD_error;
-        float Pmotor;
-        //kan weg
-        uint32_t strategyRuntime;
+        uint32_t 	unixTime;
+        uint32_t 	NTPtime;
+        uint8_t		SD_status;
 
         uint8_t MTUtemp;
         uint32_t last_msg;
-} Telemetry_data;
+        
+        //hieronder kan weg
+        float Pmotor;
+        uint32_t localRuntime;
+        uint32_t strategyRuntime;
+} MTU_data;
 
 typedef struct
 {
@@ -114,6 +113,8 @@ typedef struct
         // 0 = Normal operation
         // 1 = WiFi Setup mode
         uint8_t wifiSetupControl; 
+
+        uint32_t last_msg;
 } ESP_data;
 
 enum ESP_STATE {
@@ -134,9 +135,9 @@ typedef struct {
 	Motorcontroller_data motor;
 	MPPT_data mppt;
 	GPS_data gps;
-	Telemetry_data telemetry;
-	Screen_data display;
-        ESP_data esp;
+	MTU_data mtu;
+	Display_data display;
+    ESP_data esp;
 } DataFrame;
 
 

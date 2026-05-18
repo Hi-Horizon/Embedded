@@ -1,5 +1,8 @@
 #include "mqtt_api.h"
 
+//buffer for sending mqtt messages
+uint8_t msg[MSG_BUFFER_SIZE];
+
 PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
   //CONNECT MQTT
   client = new PubSubClient(*bear);
@@ -12,14 +15,99 @@ PubSubClient* initMqtt(PubSubClient* client, WiFiClientSecure* bear) {
   return client;
 }
 
-//buffer for sending mqtt messages
-char msg[MSG_BUFFER_SIZE];
+// build a MQTT message by concatenating all new CANbus messages, format is as follows:
+// 4 bytes: canid
+// 8 bytes: payload data
+// 2 bytes: crc
+// returns: size of message
+int32_t buildCanDataMQTTMessage(CanInbox* canInbox) {
+  int32_t index = 0;
+  uint16_t crc = 0;
+
+  for (int i = 0; i < USED_CAN_MESSAGES; i++) {
+    if (canInbox->newMsgFlags[i]) {
+      // add id to message
+      buffer_append_uint32(msg, canInbox->ids[i], &index);
+      // add data to message
+      memcpy(msg + index, canInbox->messages[i], 8);
+      index += 8;
+      canInbox->newMsgFlags[i] = false;
+      crc = calcCRC16(msg + index - 12, 12, CRC_POLYNOMIAL);
+      buffer_append_uint16(msg, crc, &index);
+    }
+  }
+
+  return index;
+}
 
 //send an mqtt message with relevant data to the broker at topic "data"
-void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataFlag, unsigned long* lastMsg) {
-  // If MTU gave data as response, parse and send data with MQTT
+void sendDataToBroker(PubSubClient* client, CanInbox* CanInbox, bool* newDataFlag, unsigned long* lastMsg) {
+  if (!(*newDataFlag)) return //do not send if there is no new data
+
   digitalWrite(LED_BUILTIN, LOW);
-  snprintf (msg, MSG_BUFFER_SIZE, 
+  
+  int32_t msgSize = buildCanDataMQTTMessage(CanInbox);
+  bool success = client->publish("data", msg, msgSize);  
+  // Serial.println("begin mqtt message");
+  // for (uint32_t i = 0; i < msgSize; i++) {
+  //   if (i % 12 == 0) {
+  //     Serial.println();
+  //   }
+  //   Serial.print(msg[i], HEX);
+  //   Serial.print(" ");
+  // }
+  // Serial.println();
+  // Serial.println("end mqtt message");
+
+  digitalWrite(LED_BUILTIN, HIGH);
+  
+  *lastMsg = millis();
+  *newDataFlag = false;
+  
+  //debug for troubleshooting purposes
+  Serial.print("message sent: ");
+  Serial.println(success);
+}
+
+void mqttReconnect(PubSubClient* client, std::function<void ()> idleFn) {
+  // Loop until we’re reconnected
+  unsigned long lastIdlePerform = 0;
+  unsigned long lastMqttReconnect = 0;
+  unsigned long reconnectWaitTime = 5000;
+  
+  if (millis() - lastIdlePerform > 1000) {
+    idleFn();
+    lastIdlePerform = millis();
+  }
+  
+  Serial.print("Attempting MQTT connection…");
+  String clientId = "ESP8266Client - MyClient"; // TODO:why in this loop?
+  // Attempt to connect
+  // Insert your password
+  if (millis() - lastMqttReconnect > reconnectWaitTime) {
+    if (client->connect(clientId.c_str(), MQTT_USER, MQTT_PWD)) {
+      Serial.println("connected");
+      // Once connected, publish an announcement…
+      client->publish("testTopic", "hello world");
+      // … and resubscribe
+      client->subscribe("testTopic");
+    } 
+    else {
+      Serial.print("failed, rc = ");
+      Serial.print(client->state());
+      Serial.println(" try again in 5 seconds");
+      Serial.println(WiFi.status());
+    }
+  }
+}
+
+void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
+  //do nothing if MQTT data is received, yet..
+};
+
+// builds MQTT message using JSON, deprecated.
+void buildJSONMQTTMessage(DataFrame* dataFrame) {
+  snprintf ((char *) msg, MSG_BUFFER_SIZE, 
     "{"
     "\"mtuT\":%u,"
     "\"fix\":%u,"
@@ -75,7 +163,7 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     "\"Tbal2\":%.2f,"
     "\"bmsT\":%u"
     "}"
-    , dataFrame->telemetry.unixTime
+    , dataFrame->mtu.unixTime
     , dataFrame->gps.fix
     , dataFrame->gps.lat
     , dataFrame->gps.lng
@@ -128,51 +216,5 @@ void sendDataToBroker(PubSubClient* client, DataFrame* dataFrame, bool* newDataF
     , dataFrame->bms.balance_temp[0]
     , dataFrame->bms.balance_temp[1]
     , dataFrame->bms.last_msg
-  );  
-
-  bool success = client->publish("data", msg);  
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  *lastMsg = millis();
-  *newDataFlag = false;
-
-  //debug for troubleshooting purposes
-  Serial.print("message sent: ");
-  Serial.println(success);
+  );
 }
-
-void mqttReconnect(PubSubClient* client, std::function<void ()> idleFn) {
-  // Loop until we’re reconnected
-  unsigned long lastIdlePerform = 0;
-  unsigned long lastMqttReconnect = 0;
-  unsigned long reconnectWaitTime = 5000;
-
-  if (millis() - lastIdlePerform > 1000) {
-    idleFn();
-    lastIdlePerform = millis();
-  }
-
-  Serial.print("Attempting MQTT connection…");
-  String clientId = "ESP8266Client - MyClient"; // TODO:why in this loop?
-  // Attempt to connect
-  // Insert your password
-  if (millis() - lastMqttReconnect > reconnectWaitTime) {
-    if (client->connect(clientId.c_str(), MQTT_USER, MQTT_PWD)) {
-      Serial.println("connected");
-      // Once connected, publish an announcement…
-      client->publish("testTopic", "hello world");
-      // … and resubscribe
-      client->subscribe("testTopic");
-    } 
-    else {
-      Serial.print("failed, rc = ");
-      Serial.print(client->state());
-      Serial.println(" try again in 5 seconds");
-      Serial.println(WiFi.status());
-    }
-  }
-}
-
-void onMQTTReceive(char* topic, byte* payload, unsigned int length) {
-  //do nothing if MQTT data is received, yet..
-};

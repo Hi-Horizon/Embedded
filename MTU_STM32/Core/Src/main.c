@@ -343,14 +343,6 @@ while (1)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	// TROUBLESHOOT CODE
-	if (toggleWifiConfig) {
-		toggleWifiConfigMode(&hfdcan1);
-		toggleWifiConfig = 0;
-	}
-
-	// Uncomment this for dummy data generation
-//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

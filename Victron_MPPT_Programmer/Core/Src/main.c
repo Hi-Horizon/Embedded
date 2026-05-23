@@ -19,6 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+#include <stdbool.h>
+
+#include "MPPT_HEX_parsing.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -47,6 +51,35 @@ DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
 
+// MPPT HEX COMMANDS
+//DIAGNOSTICS
+uint8_t getError[11]                  = {':','7','D','A', 'E', 'D','0','0','8','7', '\n'};
+//TODO: make this command
+uint8_t getState[11]                  = {':','7','0','0', '0', '0','0','0','0','0', '\n'};
+uint8_t getPanelPower[11]             = {':','7','B','C', 'E', 'D','0','0','A','5', '\n'};
+uint8_t getPanelVoltage[11]           = {':','7','D','5', 'E', 'D','0','0','8','C', '\n'};
+
+//SETTINGS
+//GET
+uint8_t getFloatSettingVoltage[11]    = {':','7','F','6', 'E', 'D','0','0','6','B', '\n'};
+uint8_t getRebulkSettingsVoltage[11]  = {':','7','2','E', 'E', 'D','0','0','3','2', '\n'};
+uint8_t getBatteryMaximumCurrent[11]  = {':','7', 'F', '0', 'E', 'D', '0', '0', '7', '1','\n'};
+
+//SET
+
+uint8_t setBatteryTypeUserDefined[13] = {':','8','F', '1', 'E', 'D','0','0','F','F','7','0','\n'};        // set to 0xFF - userDefined
+uint8_t setFloatSettingVoltage[15]    = {':','8','F','6', 'E', 'D','0','0','F','8','1','6','5','C','\n'}; // set to 58.8
+uint8_t setfactoryReset[9]            = {':','8','0','4', '0', '0','4','9', '\n'};
+
+// UART buffers and MPPT parsing States
+#define MPPT_BUF_SIZE 256
+uint8_t MPPT_buf[MPPT_BUF_SIZE];
+uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
+uint8_t mpptHex[30];
+
+uint32_t lastMPPTread = 0;
+
+bool frameDone = false;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,7 +93,16 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+  if (huart->Instance == USART1) { //MPPT
+    // parseMPPTHex(&data, MPPT_buf, MPPT_BUF_SIZE);
 
+    // clean buffer: set to 0
+    for (uint16_t i = 0; i < MPPT_BUF_SIZE; i++) {
+      MPPT_buf[i] = 0;
+    }
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -96,6 +138,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  // init RX_UART
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, MPPT_buf, MPPT_BUF_SIZE);
+
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -117,9 +162,31 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint8_t SettingBuf[15];
+  // Battery type, 0xFF is user defined
+  buildMPPTHexCommand(SettingBuf, 15, 8, 0xEDF1, 0xFF, MPPT_uint8);
+  HAL_UART_Transmit(&huart1, SettingBuf, 15, 1000);
+  // Battery voltage, 48V
+  buildMPPTHexCommand(SettingBuf, 15, 8, 0xEDEF, 48, MPPT_uint8);
+  HAL_UART_Transmit(&huart1, SettingBuf, 15, 1000);
+  // Battery temp. compensation, 0mv (disable for lithium batteries)
+  buildMPPTHexCommand(SettingBuf, 15, 8, 0xEDF2, 0, MPPT_uint16);
+  HAL_UART_Transmit(&huart1, SettingBuf, 15, 1000);
+  // Battery float voltage, 58.8
+  buildMPPTHexCommand(SettingBuf, 15, 8, 0xEDF6, 5880, MPPT_uint16);
+  HAL_UART_Transmit(&huart1, SettingBuf, 15, 1000);
+  // Battery absorption voltage, 58.8
+  buildMPPTHexCommand(SettingBuf, 15, 8, 0xEDF7, 5880, MPPT_uint16);
+  HAL_UART_Transmit(&huart1, SettingBuf, 15, 1000);
   while (1)
   {
+    if (HAL_GetTick() - lastMPPTread > 1000) {
+      //get status of MPPT during programming
+      HAL_UART_Transmit(&huart1, getError, 11, 1000);
+      HAL_UART_Transmit(&huart1, getState, 11, 1000);
 
+      lastMPPTread = HAL_GetTick();
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

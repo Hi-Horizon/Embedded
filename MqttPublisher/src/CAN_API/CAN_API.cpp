@@ -3,7 +3,9 @@
 void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg) {
   Serial.println("Initializing CAN");
 
-
+  SPI.begin();
+  delay(200);
+  
   pinMode(D8, OUTPUT);
   digitalWrite(D8, HIGH);
 

@@ -53,7 +53,7 @@ bool newData = false;
 struct can_frame canRxMsg;
 struct can_frame canEspTxMsg;
 struct can_frame canWifiCredentialsTxMsg;
-MCP2515 mcp2515(D8);
+MCP2515 mcp2515(D8, 4000000);
 
 void setup() {
   //SERIAL INIT

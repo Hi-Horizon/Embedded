@@ -223,8 +223,8 @@ void mainScreen() {
 		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:--/-- ");
 	else
 		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:%02.0f/%02.0f ",
-			float_overflowCheck(werkpaardEfficiency, 99),
-			float_overflowCheck(beukerEfficiency, 99)
+			float_overflowCheck(werkpaardEfficiency*100, 99),
+			float_overflowCheck(beukerEfficiency*100, 99)
 		);
 
 	if (HAL_GetTick() - data.motor.last_msg > 5000)

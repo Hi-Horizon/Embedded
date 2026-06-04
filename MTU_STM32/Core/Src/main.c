@@ -37,7 +37,6 @@
 #include "MTU/IMU_API.h"
 #include "MTU/MPPT_API.h"
 #include "MTU/util.h"
-#include "MTU/troubleShoot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,47 +72,35 @@ DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 
-//DataFrame
+// DataFrame
 DataFrame data;
 
-//timing
-uint32_t lastTaskPerform = 0;
-uint32_t lastMPPTread = 0;
+// Tasks
+struct task {
+	uint32_t lastPerformedMillis;
+	uint32_t frequency;				// task ideally performed every X ms
+};
+
+struct task taskWriteToSd 			= {0, 1000};
+struct task taskWriteToCan 			= {0, 1000};
+struct task taskGpsBufToDataFrame 	= {0, 1000};
 
 //UART
 uint8_t GPS_buf[GPS_BUF_SIZE];
 
-#define MPPT_BUF_SIZE 28
-uint8_t MPPT_buf[MPPT_BUF_SIZE];
-uint8_t MPPT_buf_main[MPPT_BUF_SIZE];
-uint8_t mpptHex[30];
-uint16_t bufTracker = 0;
-bool frameDone = false;
-
 //CAN
 FDCAN_RxHeaderTypeDef RxHeader;
-uint32_t              TxMailbox;
 
 //ESP
-#define ESP_BUF_SIZE 128
 bool validCredentailsRead = false;
 bool sendWiFiCredentialsFlag = false;
 bool WifiCredentialsReceivedFlag = false;
-bool EspWaitForCommand = true;
-bool espValidConn = true;
-//debug
-bool toggleWifiConfig = 0;
-
 uint8_t rxWifiCredSeq = 0;
-uint8_t nextMsgId = 0;
-uint8_t esp_tx_buf[ESP_BUF_SIZE];
-uint8_t esp_rx_buf[ESP_BUF_SIZE];
 
-uint8_t wifiCredentialsLength = 0;
-uint32_t wifiCredentialsRxLength = 0;
 uint8_t wifiCredentialsBuf[258];
 WifiCredentials wifiCredentials;
-uint8_t prevRequestValue = 0;
+uint8_t wifiCredentialsLength = 0;
+uint32_t wifiCredentialsRxLength = 0;
 
 //IMU
 uint8_t IMU_txbuf[8];
@@ -122,11 +109,9 @@ uint8_t IMU_rxbuf[8];
 HAL_StatusTypeDef IMU_status;
 
 //SD
+char sdBuf[1024];
 FATFS fs;
 FRESULT sdResult;
-char sdBuf[1024];
-bool needToSaveWiFiConfig = false;
-
 UINT br, bw;
 uint32_t total, free_space;
 /* USER CODE END PV */
@@ -144,55 +129,39 @@ static void MX_SPI3_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
-int isSizeRxed = 0;
-uint16_t size = 0;
 
-// UART DMA callback handling BMS data
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if (huart->Instance == USART1) { //BMS
-		parseBmsFrame(&data, MPPT_buf);
-	}
-}
-
-// Idle line UART callback, used for MPPT and GPS data
+// Idle line UART interrupt routine, used for GPS data
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
-	//BMS
-	if (huart->Instance == USART1) {
-		parseBmsMessage(&data, MPPT_buf, MPPT_BUF_SIZE);
-	}
 	//GPS
 	if (huart->Instance == UART5) {
 		parseGPS(&data, GPS_buf, Size);
 	}
 }
 
-void CAN_parse_for_WiFiCredentials_request() {
-	if (RxHeader.Identifier == 0x752) {
-		sendWiFiCredentialsFlag = true;
-	}
-}
 
-// processes CANBUS messages
+// CANbus interrupt routine
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
 	uint8_t RxData[8];
 	HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
-	CAN_parse_for_WiFiCredentials_request();
+
+	// Telemetry reset signal
 	if (RxHeader.Identifier == 0x100) {
 		NVIC_SystemReset();
 	}
+
+	// signal to send wifiCredentials
+	if (RxHeader.Identifier == 0x752) {
+		sendWiFiCredentialsFlag = true;
+	}
+
 	if (listenForWiFiCredentialsCan(RxHeader.Identifier, RxData, wifiCredentialsBuf, &wifiCredentialsRxLength, &WifiCredentialsReceivedFlag, &rxWifiCredSeq) == 0) {
 		rxWifiCredSeq = 0;
 	}
+
+	// Parse telemetry Data
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data, data.mtu.unixTime);
 }
 
-void sendWiFiCredentialsWithCan() {
-	readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
-	sendWiFiCredentialsBuf(&hfdcan1, wifiCredentialsBuf, wifiCredentialsLength);
-}
-
-uint8_t espParseBuf[ESP_BUF_SIZE];
 
 /* USER CODE END PFP */
 
@@ -251,12 +220,9 @@ int main(void)
   }
 
   //UART INIT
-  //clear the RDR register to avoid overrun error
-  volatile uint8_t tempUARTrdr = huart1.Instance->RDR;
-  (void)tempUARTrdr;
 
   //clear the RDR register to avoid overrun error
-  tempUARTrdr = huart5.Instance->RDR;
+  volatile uint8_t tempUARTrdr = huart5.Instance->RDR;
   (void)tempUARTrdr;
   HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 
@@ -275,33 +241,53 @@ int main(void)
 /////////////////////
 while (1)
   {
+	// -- tasks performed every cycle --
+
 	getRTCUnixTime(&hrtc, &data);
 
-	//general tasks
-	if (HAL_GetTick() - lastTaskPerform > 1000) {
-		data.mtu.SD_status = writeDataFrameToSD(&data);
-		sendToCan(&hfdcan1, &data);
+
+	// -- tasks performed on time based interval --
+
+	//convert raw GPS dataBuffer to values in dataframe struct
+	if (HAL_GetTick() - taskGpsBufToDataFrame.lastPerformedMillis > taskGpsBufToDataFrame.frequency) {
 		GPS_bufferToDataFrame(&data);
 
-		lastTaskPerform = HAL_GetTick();
+		taskGpsBufToDataFrame.lastPerformedMillis = HAL_GetTick();
 	}
 
-	//if gps has overrun error, clear rdr buffer
+	// send GPS and MTU data to the CANbus network
+	if (HAL_GetTick() - taskWriteToCan.lastPerformedMillis > taskWriteToCan.frequency) {
+		sendToCan(&hfdcan1, &data);
+
+		taskWriteToCan.lastPerformedMillis = HAL_GetTick();
+	}
+
+	// log all data to the sd card
+	if (HAL_GetTick() - taskWriteToSd.lastPerformedMillis > taskWriteToSd.frequency) {
+		data.mtu.SD_status = writeDataFrameToSD(&data);
+
+		taskWriteToSd.lastPerformedMillis = HAL_GetTick();
+	}
+
+
+	// -- event-driven tasks --
+
+	// If gps has overrun error, clear rdr buffer and reinitialize interrupt
 	if (huart5.ErrorCode & 8) {
 		tempUARTrdr = huart5.Instance->RDR;
 		(void)tempUARTrdr;
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart5, GPS_buf, GPS_BUF_SIZE);
 	}
-	if (huart1.ErrorCode & 8) {
-		tempUARTrdr = huart1.Instance->RDR;
-		(void)tempUARTrdr;
-	}
 
+	// If esp requests wifiCredentials, send it over CANbus
 	if (validCredentailsRead & sendWiFiCredentialsFlag) {
-		sendWiFiCredentialsWithCan();
+		readWifiCredentialsRaw(wifiCredentialsBuf, &wifiCredentialsLength);
+		sendWiFiCredentialsBuf(&hfdcan1, wifiCredentialsBuf, wifiCredentialsLength);
+
 		sendWiFiCredentialsFlag = false;
 	}
 
+	// If esp received new wifi Credentials, save it to SD card
 	if (WifiCredentialsReceivedFlag) {
 		sdResult = saveWifiCredentialsRaw(wifiCredentialsBuf, wifiCredentialsLength);
 		if (sdResult == FR_OK) { //success
@@ -309,17 +295,10 @@ while (1)
 			WifiCredentialsReceivedFlag = false;
 		}
 	}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	// TROUBLESHOOT CODE
-	if (toggleWifiConfig) {
-		toggleWifiConfigMode(&hfdcan1);
-		toggleWifiConfig = 0;
-	}
-
-	// Uncomment this for dummy data generation
-//	 fillRandomData(&data);
   }
 	////////////////////
 	//****END MAIN****//

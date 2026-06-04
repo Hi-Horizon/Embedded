@@ -64,16 +64,12 @@ void sendToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsHeader, TxData);
 
-	HAL_Delay(50);
-
 	//write payload for GPS position message and send
 	ind = 0;
 	buffer_append_float32(TxData,  data->gps.lat, 10000, &ind);
 	buffer_append_float32(TxData,  data->gps.lng, 10000, &ind);
 
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &GpsCoordinatesHeader, TxData);
-
-	HAL_Delay(50);
 
 	//write payload for MTUgeneral message and send
 	ind = 0;
@@ -142,107 +138,5 @@ uint8_t listenForWiFiCredentialsCan(uint32_t id, uint8_t* rxData, uint8_t* sdBuf
 		*seq = *seq + 1;
 	}
 	return 1;
-}
-
-FDCAN_TxHeaderTypeDef MockESCHeader;
-FDCAN_TxHeaderTypeDef MockBattery1VoltageHeader;
-FDCAN_TxHeaderTypeDef MockBattery2VoltageHeader;
-FDCAN_TxHeaderTypeDef MockBattery3VoltageHeader;
-FDCAN_TxHeaderTypeDef MockBatteryVoltageHeader;
-FDCAN_TxHeaderTypeDef MockBatteryCurrentHeader;
-
-void setMockCanTxHeaders() {
-	MockESCHeader.Identifier 		= 0x14A10191;
-	MockESCHeader.IdType 			= FDCAN_EXTENDED_ID;
-	MockESCHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockESCHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockESCHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	MockBattery1VoltageHeader.Identifier 		= 0x200;
-	MockBattery1VoltageHeader.IdType 			= FDCAN_STANDARD_ID;
-	MockBattery1VoltageHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockBattery1VoltageHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockBattery1VoltageHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	MockBattery2VoltageHeader.Identifier 		= 0x201;
-	MockBattery2VoltageHeader.IdType 			= FDCAN_STANDARD_ID;
-	MockBattery2VoltageHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockBattery2VoltageHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockBattery2VoltageHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	MockBattery3VoltageHeader.Identifier 		= 0x202;
-	MockBattery3VoltageHeader.IdType 			= FDCAN_STANDARD_ID;
-	MockBattery3VoltageHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockBattery3VoltageHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockBattery3VoltageHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	MockBatteryVoltageHeader.Identifier 		= 0x203;
-	MockBatteryVoltageHeader.IdType 			= FDCAN_STANDARD_ID;
-	MockBatteryVoltageHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockBatteryVoltageHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockBatteryVoltageHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-
-	MockBatteryCurrentHeader.Identifier 		= 0x204;
-	MockBatteryCurrentHeader.IdType 			= FDCAN_STANDARD_ID;
-	MockBatteryCurrentHeader.TxFrameType 		= FDCAN_DATA_FRAME;
-	MockBatteryCurrentHeader.DataLength 		= FDCAN_DLC_BYTES_8;
-	MockBatteryCurrentHeader.FDFormat			= FDCAN_CLASSIC_CAN;
-}
-
-void sendMockDataToCan(FDCAN_HandleTypeDef* hfdcan1, DataFrame* data) {
-	uint8_t TxData[8];
-	int32_t ind = 0;
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBattery1VoltageHeader, TxData);
-
-	HAL_Delay(50);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBattery2VoltageHeader, TxData);
-
-	HAL_Delay(50);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBattery3VoltageHeader, TxData);
-
-	HAL_Delay(50);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage/14, 10000, &ind);
-	buffer_append_float16(TxData,  data->bms.battery_voltage, 1000, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBatteryVoltageHeader, TxData);
-
-	HAL_Delay(50);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data->bms.battery_current - 326.7, 100, &ind);
-	buffer_append_float16(TxData,  data->bms.charge_current + 250.0, 100, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockBatteryCurrentHeader, TxData);
-
-	HAL_Delay(50);
-
-	ind = 0;
-	buffer_append_float16(TxData,  data->motor.battery_voltage, 57.45, &ind);
-	buffer_append_float16(TxData,  data->motor.battery_current, 10, &ind);
-	buffer_append_uint32(TxData,    data->motor.rpm, &ind);
-
-	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &MockESCHeader, TxData);
 }
 

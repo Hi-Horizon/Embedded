@@ -21,17 +21,16 @@
 static const char *TAG = "mqtts_example";
 
 #define CONFIG_BROKER_URI "7f15879e36cf4f3781ca3df1f338b397.s1.eu.hivemq.cloud"
-#define CONFIG_BROKER_CERTIFICATE_OVERRIDDEN 1
-
-#define CONFIG_BROKER_CERTIFICATE_OVERRIDE "testPleaseCompile"
 
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
-static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n"
+static const uint8_t data_certs_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n"
                                                             CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
 #else
-extern const uint8_t mqtt_eclipseprojects_io_pem_start[]   asm("_binary_mqtt_eclipseprojects_io_pem_start");
+extern const uint8_t data_certs_pem_start[]  asm("_binary_cacert_pem_start");
+// const uint8_t data_certs_pem_start[] =  "-----BEGIN CERTIFICATE-----\n";
 #endif
-extern const uint8_t mqtt_eclipseprojects_io_pem_end[]   asm("_binary_mqtt_eclipseprojects_io_pem_end");
+// const uint8_t data_certs_pem_end[] =  "-----END CERTIFICATE-----\n";
+extern const uint8_t data_certs_pem_end[]    asm("_binary_cacert_pem_end");
 
 twai_node_handle_t node_hdl = nullptr;
 twai_onchip_node_config_t CAN_config = {};
@@ -61,8 +60,6 @@ void CAN_app_start() {
     //define callbacks for CAN
     twai_event_callbacks_t user_cbs = {};
     user_cbs.on_rx_done = can_rx_cb;
-
-
     ESP_ERROR_CHECK(twai_node_register_event_callbacks(node_hdl, &user_cbs, nullptr));
 
     // Start the TWAI controller
@@ -154,7 +151,7 @@ static void mqtt_app_start()
 
     esp_mqtt_client_config_t mqtt_cfg = {};
     mqtt_cfg.broker.address.uri = CONFIG_BROKER_URI;
-    mqtt_cfg.broker.verification.certificate = (const char *) mqtt_eclipseprojects_io_pem_start;
+    mqtt_cfg.broker.verification.certificate = (const char *) data_certs_pem_start;
 
     // ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);

@@ -110,8 +110,8 @@
       </method>
     </configuration>
     <list>
-      <item itemvalue="CMake Application.Victron_MPPT_Programmer" />
       <item itemvalue="CMake Application.STM32_Drivers" />
+      <item itemvalue="CMake Application.Victron_MPPT_Programmer" />
     </list>
   </component>
   <component name="RustProjectSettings">
@@ -126,6 +126,7 @@
       <updated>1779546258042</updated>
       <workItem from="1779546259559" duration="548000" />
       <workItem from="1779546821386" duration="788000" />
+      <workItem from="1780995777775" duration="379000" />
     </task>
     <task id="LOCAL-00001" summary="First build / setup to try">
       <option name="closed" value="true" />

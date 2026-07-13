@@ -1,16 +1,20 @@
-#include "esp_twai.h"
-#include "esp_twai_onchip.h"
-
+#include <esp_timer.h>
 
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <string.h>
 #include "esp_system.h"
 #include "esp_partition.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
+#include "esp_netif_sntp.h"
+#include "protocol_examples_common.h"
+#include "mqtt.h"
+#include "esp_twai.h"
+#include "esp_twai_onchip.h"
+#include "esp_wifi.h"
+#include "buffer.h"
 
 #include "esp_log.h"
 #include "mqtt_client.h"
@@ -18,52 +22,137 @@
 #include "esp_ota_ops.h"
 #include <sys/param.h>
 
-static const char *TAG = "mqtts_example";
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#define CONFIG_BROKER_URI "7f15879e36cf4f3781ca3df1f338b397.s1.eu.hivemq.cloud"
+// CANbus
+twai_node_handle_t node_hdl;
+CanInbox can_inbox = {
+    .ids = {
+        0x200, 0x201, 0x202, 0x203, 0x204,
+        0x2A0, 0x2A1, 0x2A2,
+        0x601, 0x611, 0x621,
+        0x701, 0x702, 0x711, 0x721, 0x731, 0x741, 0x751,
+        0x14A10191, 0x14A10192, 0x14A10193, 0x14A10194, 0x14A10190
+    },
+    .newMsgFlags = { false },   // rest zero-initialized
+    .messages    = { { 0 } }        // rest zero-initialized
+};
+
+// MQTT
+esp_mqtt_client_handle_t client;
+
+#define CONFIG_BROKER_URI                      "mqtts://7f15879e36cf4f3781ca3df1f338b397.s1.eu.hivemq.cloud:8883"
+#define CONFIG_BROKER_BIN_SIZE_TO_SEND         512
+#define CONFIG_BROKER_CERTIFICATE_OVERRIDDEN   0
+
+static const char *TAG = "MAIN";
 
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
-static const uint8_t data_certs_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n"
+static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n"
                                                             CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
 #else
-extern const uint8_t data_certs_pem_start[]  asm("_binary_cacert_pem_start");
-// const uint8_t data_certs_pem_start[] =  "-----BEGIN CERTIFICATE-----\n";
+extern const uint8_t mqtt_eclipseprojects_io_pem_start[]   asm("_binary_cacert_pem_start");
 #endif
-// const uint8_t data_certs_pem_end[] =  "-----END CERTIFICATE-----\n";
-extern const uint8_t data_certs_pem_end[]    asm("_binary_cacert_pem_end");
+extern const uint8_t mqtt_eclipseprojects_io_pem_end[]   asm("_binary_cacert_pem_end");
 
-twai_node_handle_t node_hdl = nullptr;
-twai_onchip_node_config_t CAN_config = {};
+// CANBus Transmission completion callback
+static IRAM_ATTR bool twai_sender_tx_done_callback(twai_node_handle_t handle, const twai_tx_done_event_data_t *edata, void *user_ctx)
+{
+    if (!edata->is_tx_success) {
+        ESP_EARLY_LOGW(TAG, "Failed to transmit message, ID: 0x%X", edata->done_tx_frame->header.id);
+    }
+    return false; // No task wake required
+}
 
-static bool can_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx)
+// CANBus error callback
+static IRAM_ATTR bool twai_sender_on_error_callback(twai_node_handle_t handle, const twai_error_event_data_t *edata, void *user_ctx)
+{
+    ESP_EARLY_LOGW(TAG, "TWAI node error: 0x%x", edata->err_flags.val);
+    return false; // No task wake required
+}
+
+// Callback function for CANbus rx_receive, puts message in CANinbox
+static IRAM_ATTR bool CAN_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx)
 {
     uint8_t recv_buff[8];
-    twai_frame_t rx_frame = { };
-    rx_frame.buffer = recv_buff;
-    rx_frame.buffer_len = sizeof(recv_buff);
-
+    twai_frame_t rx_frame = {
+        .buffer = recv_buff,
+        .buffer_len = sizeof(recv_buff),
+    };
     if (ESP_OK == twai_node_receive_from_isr(handle, &rx_frame)) {
         // receive ok, do something here
+        for (int i = 0; i < USED_CAN_MESSAGES; i++) {
+            if (can_inbox.ids[i] == rx_frame.header.id) {
+                memcpy(can_inbox.messages[i], rx_frame.buffer, rx_frame.buffer_len);
+                can_inbox.newMsgFlags[i] = true;
+            }
+        }
     }
     return false;
 }
 
-void CAN_app_start() {
-    CAN_config.io_cfg.tx = GPIO_NUM_4;        // CTX GPIO pin
-    CAN_config.io_cfg.rx = GPIO_NUM_5;        // CRX GPIO pin
-    CAN_config.bit_timing.bitrate = 125000;   // 125 kbps bitrate
-    CAN_config.tx_queue_depth = 5;            // Transmit queue depth set to 5
+static void CANbus_app_start(void) {
 
-    // Create a new CAN controller driver instance
-    ESP_ERROR_CHECK(twai_new_node_onchip(&CAN_config, &node_hdl));
+    twai_onchip_node_config_t node_config = {
+        .io_cfg = {
+            .tx = 10,             // TWAI TX GPIO pin
+            .rx = 11,             // TWAI RX GPIO pin
+        },
+        .bit_timing.bitrate = 125000,  // 200 kbps bitrate
+        .tx_queue_depth = 5,        // Transmit queue depth set to 5
+        .intr_priority = 0,
+        .flags = {
+            .enable_self_test = 1,
+            .enable_loopback = 0,
+        }
+    };
+    // Create a new TWAI controller driver instance
+    ESP_ERROR_CHECK(twai_new_node_onchip(&node_config, &node_hdl));
 
-    //define callbacks for CAN
-    twai_event_callbacks_t user_cbs = {};
-    user_cbs.on_rx_done = can_rx_cb;
-    ESP_ERROR_CHECK(twai_node_register_event_callbacks(node_hdl, &user_cbs, nullptr));
+    twai_event_callbacks_t user_cbs = {
+        .on_rx_done = CAN_rx_cb,
+        .on_tx_done = twai_sender_tx_done_callback,
+        .on_error = twai_sender_on_error_callback,
+    };
+    ESP_ERROR_CHECK(twai_node_register_event_callbacks(node_hdl, &user_cbs, NULL));
 
     // Start the TWAI controller
     ESP_ERROR_CHECK(twai_node_enable(node_hdl));
+    ESP_LOGI(TAG, "TWAI Sender started successfully");
+}
+
+// Retrieves SNTP time
+static void obtain_time(void)
+{
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    ESP_ERROR_CHECK(esp_netif_sntp_init(&config));
+
+    if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000)) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to sync time within timeout, TLS handshake may fail");
+    } else {
+        time_t now;
+        struct tm timeinfo;
+        time(&now);
+        localtime_r(&now, &timeinfo);
+        ESP_LOGI(TAG, "Time synced: %s", asctime(&timeinfo));
+    }
+}
+
+//
+// Note: this function is for testing purposes only publishing part of the active partition
+//       (to be checked against the original binary)
+//
+static void send_binary(esp_mqtt_client_handle_t client)
+{
+    esp_partition_mmap_handle_t out_handle;
+    const void *binary_address;
+    const esp_partition_t *partition = esp_ota_get_running_partition();
+    esp_partition_mmap(partition, 0, partition->size, ESP_PARTITION_MMAP_DATA, &binary_address, &out_handle);
+    // sending only the configured portion of the partition (if it's less than the partition size)
+    int binary_size = MIN(CONFIG_BROKER_BIN_SIZE_TO_SEND, partition->size);
+    int msg_id = esp_mqtt_client_publish(client, "topic/binary", binary_address, binary_size, 0, 0);
+    ESP_LOGI(TAG, "binary sent with msg_id=%d", msg_id);
 }
 
 /*
@@ -79,19 +168,14 @@ void CAN_app_start() {
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
-    esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t) event_data;
+    esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
 
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_subscribe(client, "topic/qos0", 0);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_subscribe(client, "topic/qos1", 1);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_unsubscribe(client, "topic/qos1");
-        ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);
+        esp_mqtt_client_publish(client, "connection", "esp32 CONNECTED", 0, 0, 0);
         break;
 
     case MQTT_EVENT_DISCONNECTED:
@@ -100,12 +184,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     case MQTT_EVENT_SUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
-        msg_id = esp_mqtt_client_publish(client, "topic/qos0", "data", 0, 0, 0);
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+        // subscription is not needed yet
         break;
 
     case MQTT_EVENT_UNSUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+        // unsubscription is not needed yet
         break;
 
     case MQTT_EVENT_PUBLISHED:
@@ -117,10 +201,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
 
-        // if (strncmp(event->data, "send binary please", event->data_len) == 0) {
-        //     ESP_LOGI(TAG, "Sending the binary");
-        //     send_binary(client);
-        // }
+        if (strncmp(event->data, "send binary please", event->data_len) == 0) {
+            ESP_LOGI(TAG, "Sending the binary");
+            send_binary(client);
+        }
 
         break;
 
@@ -146,21 +230,113 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-static void mqtt_app_start()
-{
 
-    esp_mqtt_client_config_t mqtt_cfg = {};
-    mqtt_cfg.broker.address.uri = CONFIG_BROKER_URI;
-    mqtt_cfg.broker.verification.certificate = (const char *) data_certs_pem_start;
-
-    // ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+static void mqtt_app_start(void) {
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .broker = {
+            .address.uri = CONFIG_BROKER_URI,
+            .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start,
+        },
+        .credentials = {
+            .username = "admin",
+            .authentication = {
+                .password = "H1hrtFTW",
+            }
+        }
+    };
+    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    client = esp_mqtt_client_init(&mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t) ESP_EVENT_ANY_ID, mqtt_event_handler, nullptr);
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
 }
 
-void app_main() {
-    CAN_app_start();
+static void CANbus_task(void *arg) {
+    static const char *TAG = "CANbus";
+    CANbus_app_start();
+
+    // esp stat frame
+    uint8_t esp_stats_tx_buffer[8];
+    twai_frame_t esp_stats_tx_frame = {
+        .header.id = 0x751,
+        .header.ide = false,
+        .header.dlc = 8,
+        .buffer = esp_stats_tx_buffer,
+        .buffer_len = 8,
+    };
+
+    int32_t index = 0;
+    uint64_t lastTestFrameSent = 0;
+    uint64_t lastMQTTFrameSent = 0;
+    while (true) {
+        time_t now;
+        time(&now);
+        uint32_t currentTime = (int32_t) now;
+
+        index = 0;
+        buffer_append_uint8(esp_stats_tx_buffer, 0, &index);
+        buffer_append_uint8(esp_stats_tx_buffer, 0, &index);
+        buffer_append_uint8(esp_stats_tx_buffer, 0, &index);
+        buffer_append_uint32(esp_stats_tx_buffer, currentTime, &index);
+        buffer_append_uint8(esp_stats_tx_buffer, 0, &index);
+
+        // ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &tx_frame, 500));
+        ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &esp_stats_tx_frame, 500));
+
+        // todo: turn this into a util function
+        // for (int i = 0; i < USED_CAN_MESSAGES; i++) {
+        //     if (can_inbox.newMsgFlags[i]) {
+        //         ESP_LOGI(TAG, "RX: %x [%d] %x %x %x %x %x %x %x %x",
+        //             can_inbox.ids[i], 8,
+        //             can_inbox.messages[i][0], can_inbox.messages[i][1], can_inbox.messages[i][2], can_inbox.messages[i][3],
+        //             can_inbox.messages[i][4], can_inbox.messages[i][5], can_inbox.messages[i][6], can_inbox.messages[i][7]
+        //         );
+        //     }
+        // }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+static void MQTT_task(void *arg) {
+    static const char *TAG = "MQTT";
+    uint8_t msg[512];
+    int32_t msgSize = 0;
+    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ESP_ERROR_CHECK(example_connect());
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    obtain_time();
     mqtt_app_start();
+
+    while (true) {
+        //if there is at least 1 new CAN message, send all new can messages over MQTT
+        portDISABLE_INTERRUPTS();
+        msgSize = buildCanDataMQTTMessage(&can_inbox, msg);
+        portENABLE_INTERRUPTS();
+        if (msgSize > 0) { // only send if there are new messages
+            esp_mqtt_client_publish(client, "data", (const char*)msg, msgSize, 0, 0);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void app_main(void)
+{
+    ESP_LOGI(TAG, "[APP] Startup..");
+    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+    esp_log_level_set("*", ESP_LOG_INFO);
+    // esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
+    esp_log_level_set("mbedtls", ESP_LOG_DEBUG);
+    esp_log_level_set("esp-tls", ESP_LOG_DEBUG);
+    esp_log_level_set("mqtt_client", ESP_LOG_VERBOSE);
+    esp_log_level_set("mqtt_example", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport_base", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport", ESP_LOG_VERBOSE);
+    esp_log_level_set("outbox", ESP_LOG_VERBOSE);
+
+    xTaskCreate(CANbus_task, "CANbus_task", 1024, NULL, 0, NULL);
+    xTaskCreate(MQTT_task, "MQTT_task", 4096, NULL, 1, NULL);
 }

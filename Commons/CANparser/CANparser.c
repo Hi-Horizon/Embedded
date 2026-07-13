@@ -87,6 +87,7 @@ void CAN_parseMessage(uint32_t id, const uint8_t *payload, DataFrame *dataset, u
 			generate_bit_list(14, isBalancingNum, dataset->bms.is_Balancing);
 
 			dataset->bms.last_msg = receiveTime;
+			break;
 		}
 		//bms (old)
 		case 0x601:

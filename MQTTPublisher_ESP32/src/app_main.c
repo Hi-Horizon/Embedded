@@ -25,6 +25,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include <network_provisioning/manager.h>
+#include <network_provisioning/scheme_ble.h>
+
+const int WIFI_CONNECTED_EVENT = BIT0;
+static EventGroupHandle_t wifi_event_group;
+
 // CANbus
 twai_node_handle_t node_hdl;
 CanInbox can_inbox = {
@@ -136,7 +142,9 @@ static void obtain_time(void)
         time(&now);
         localtime_r(&now, &timeinfo);
         ESP_LOGI(TAG, "Time synced: %s", asctime(&timeinfo));
+        esp_netif_sntp_deinit();
     }
+
 }
 
 //
@@ -244,7 +252,6 @@ static void mqtt_app_start(void) {
             }
         }
     };
-    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     client = esp_mqtt_client_init(&mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
@@ -266,8 +273,6 @@ static void CANbus_task(void *arg) {
     };
 
     int32_t index = 0;
-    uint64_t lastTestFrameSent = 0;
-    uint64_t lastMQTTFrameSent = 0;
     while (true) {
         time_t now;
         time(&now);
@@ -298,15 +303,173 @@ static void CANbus_task(void *arg) {
     }
 }
 
+/* prov_Event handler for catching system events */
+static void prov_event_handler(void *arg, esp_event_base_t event_base,
+                          int32_t event_id, void *event_data)
+{
+    if (event_base == NETWORK_PROV_EVENT) {
+        switch (event_id) {
+        case NETWORK_PROV_START:
+            ESP_LOGI(TAG, "Provisioning started");
+            break;
+        case NETWORK_PROV_WIFI_CRED_RECV: {
+            wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
+            ESP_LOGI(TAG, "Received Wi-Fi credentials"
+                     "\n\tSSID     : %s\n\tPassword : %s",
+                     (const char *) wifi_sta_cfg->ssid,
+                     (const char *) wifi_sta_cfg->password);
+            break;
+        }
+        case NETWORK_PROV_WIFI_CRED_FAIL: {
+            network_prov_wifi_sta_fail_reason_t *reason = (network_prov_wifi_sta_fail_reason_t *)event_data;
+            ESP_LOGE(TAG, "Provisioning failed!\n\tReason : %s"
+                     "\n\tPlease reset to factory and retry provisioning",
+                     (*reason == NETWORK_PROV_WIFI_STA_AUTH_ERROR) ?
+                     "Wi-Fi station authentication failed" : "Wi-Fi access-point not found");
+            break;
+        }
+        case NETWORK_PROV_WIFI_CRED_SUCCESS:
+            ESP_LOGI(TAG, "Provisioning successful");
+            break;
+        case NETWORK_PROV_END:
+            // /* De-initialize manager once provisioning is finished */
+            // esp_err_t err = network_prov_mgr_deinit();
+            //     ESP_LOGI(TAG, "Skibidi Provisioning completed");
+            // if (err != ESP_OK) {
+            //     ESP_LOGE(TAG, "Failed to de-initialize provisioning manager: %s", esp_err_to_name(err));
+            // }
+            // break;
+        default:
+            break;
+        }
+    } else if (event_base == WIFI_EVENT) {
+        switch (event_id) {
+        case WIFI_EVENT_STA_START:
+            esp_wifi_connect();
+            break;
+        case WIFI_EVENT_STA_DISCONNECTED:
+            ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
+            esp_wifi_connect();
+            break;
+        default:
+            break;
+        }
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+        ESP_LOGI(TAG, "Connected with IP Address:" IPSTR, IP2STR(&event->ip_info.ip));
+        /* Signal main application to continue execution */
+        ESP_LOGI(TAG, "sending wifi connected signal");
+        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_EVENT);
+    } else if (event_base == PROTOCOMM_TRANSPORT_BLE_EVENT) {
+        switch (event_id) {
+        case PROTOCOMM_TRANSPORT_BLE_CONNECTED:
+            ESP_LOGI(TAG, "BLE transport: Connected!");
+            break;
+        case PROTOCOMM_TRANSPORT_BLE_DISCONNECTED:
+            ESP_LOGI(TAG, "BLE transport: Disconnected!");
+            break;
+        default:
+            break;
+        }
+    } else if (event_base == PROTOCOMM_SECURITY_SESSION_EVENT) {
+        switch (event_id) {
+        case PROTOCOMM_SECURITY_SESSION_SETUP_OK:
+            ESP_LOGI(TAG, "Secured session established!");
+            break;
+        case PROTOCOMM_SECURITY_SESSION_INVALID_SECURITY_PARAMS:
+            ESP_LOGE(TAG, "Received invalid security parameters for establishing secure session!");
+            break;
+        case PROTOCOMM_SECURITY_SESSION_CREDENTIALS_MISMATCH:
+            ESP_LOGE(TAG, "Received incorrect username and/or PoP for establishing secure session!");
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+static void connect_wifi_with_provisioning() {
+    ESP_ERROR_CHECK(esp_event_handler_register(NETWORK_PROV_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_TRANSPORT_BLE_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+
+    ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &prov_event_handler, NULL));
+
+    esp_netif_create_default_wifi_sta();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    network_prov_mgr_config_t config = {
+        .scheme = network_prov_scheme_ble,
+        .scheme_event_handler = NETWORK_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM
+    };
+    ESP_ERROR_CHECK(network_prov_mgr_init(config));
+
+    bool wifiProvisioned = false;
+    // uncomment to always trigger provisioning on startup
+    // network_prov_mgr_reset_wifi_provisioning();
+
+    ESP_ERROR_CHECK(network_prov_mgr_is_wifi_provisioned(&wifiProvisioned));
+    //
+    if (!wifiProvisioned) {
+        ESP_LOGI(TAG, "Starting provisioning");
+        uint8_t custom_service_uuid[] = {
+            /* LSB <---------------------------------------
+             * ---------------------------------------> MSB */
+            0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
+            0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
+        };
+        // 0 is simply plain text communication.
+        network_prov_security_t security = 0;
+        network_prov_scheme_ble_set_service_uuid(custom_service_uuid);
+
+        ESP_ERROR_CHECK(network_prov_mgr_start_provisioning(security, nullptr, "Hi-Horizon Bluetooth provisioning", nullptr));
+        network_prov_mgr_wait();
+        vTaskDelay(100); //wait to make sure all rtos locks are released correctly
+        network_prov_mgr_deinit();
+    } else {
+        ESP_LOGI(TAG, "Already provisioned, starting Wi-Fi STA");
+
+        /* We don't need the manager as device is already provisioned,
+         * so let's release it's resources */
+        ESP_ERROR_CHECK(network_prov_mgr_deinit());
+
+        heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+        heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
+        heap_caps_print_heap_info(MALLOC_CAP_DMA);
+
+        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+
+        // esp_wifi_set_default_wifi_sta_handlers();
+        /* Start Wi-Fi in station mode */
+        ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_start());
+    }
+    // /* Wait for Wi-Fi connection */
+    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, portMAX_DELAY);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+}
+
 static void MQTT_task(void *arg) {
     static const char *TAG = "MQTT";
     uint8_t msg[512];
     int32_t msgSize = 0;
-    ESP_ERROR_CHECK(nvs_flash_init());
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+    err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGE(TAG, "NVS failed to initialize");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    ESP_ERROR_CHECK(example_connect());
-    esp_wifi_set_ps(WIFI_PS_NONE);
+
+    connect_wifi_with_provisioning();
+    // ESP_ERROR_CHECK(example_connect());
+
+    ESP_LOGI(TAG, "starting init sntp and mqtt");
     obtain_time();
     mqtt_app_start();
 
@@ -327,7 +490,7 @@ void app_main(void)
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
-    esp_log_level_set("*", ESP_LOG_INFO);
+    // esp_log_level_set("*", ESP_LOG_INFO);
     // esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("mbedtls", ESP_LOG_DEBUG);
     esp_log_level_set("esp-tls", ESP_LOG_DEBUG);
@@ -336,6 +499,8 @@ void app_main(void)
     esp_log_level_set("transport_base", ESP_LOG_VERBOSE);
     esp_log_level_set("transport", ESP_LOG_VERBOSE);
     esp_log_level_set("outbox", ESP_LOG_VERBOSE);
+
+    wifi_event_group = xEventGroupCreate();
 
     xTaskCreate(CANbus_task, "CANbus_task", 1024, NULL, 0, NULL);
     xTaskCreate(MQTT_task, "MQTT_task", 4096, NULL, 1, NULL);

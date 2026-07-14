@@ -285,7 +285,6 @@ static void CANbus_task(void *arg) {
         buffer_append_uint32(esp_stats_tx_buffer, currentTime, &index);
         buffer_append_uint8(esp_stats_tx_buffer, 0, &index);
 
-        // ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &tx_frame, 500));
         ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &esp_stats_tx_frame, 500));
 
         // todo: turn this into a util function
@@ -387,7 +386,7 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
         }
     }
 }
-
+static esp_netif_t *s_example_sta_netif = NULL;
 static void connect_wifi_with_provisioning() {
     ESP_ERROR_CHECK(esp_event_handler_register(NETWORK_PROV_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_TRANSPORT_BLE_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
@@ -407,7 +406,7 @@ static void connect_wifi_with_provisioning() {
 
     bool wifiProvisioned = false;
     // uncomment to always trigger provisioning on startup
-    // network_prov_mgr_reset_wifi_provisioning();
+    network_prov_mgr_reset_wifi_provisioning();
 
     ESP_ERROR_CHECK(network_prov_mgr_is_wifi_provisioned(&wifiProvisioned));
     //
@@ -434,15 +433,9 @@ static void connect_wifi_with_provisioning() {
          * so let's release it's resources */
         ESP_ERROR_CHECK(network_prov_mgr_deinit());
 
-        heap_caps_print_heap_info(MALLOC_CAP_8BIT);
-        heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
-        heap_caps_print_heap_info(MALLOC_CAP_DMA);
-
-        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
-
-        // esp_wifi_set_default_wifi_sta_handlers();
         /* Start Wi-Fi in station mode */
-        ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
+        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+        ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_start());
     }
@@ -455,19 +448,12 @@ static void MQTT_task(void *arg) {
     static const char *TAG = "MQTT";
     uint8_t msg[512];
     int32_t msgSize = 0;
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
-    err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGE(TAG, "NVS failed to initialize");
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-    }
-
+    ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
     connect_wifi_with_provisioning();
     // ESP_ERROR_CHECK(example_connect());
+    // esp_wifi_set_ps(WIFI_PS_NONE);
 
     ESP_LOGI(TAG, "starting init sntp and mqtt");
     obtain_time();
@@ -485,11 +471,21 @@ static void MQTT_task(void *arg) {
     }
 }
 
+#define MQTT_TASK_STACK_SIZE   3584
+#define CANBUS_TASK_STACK_SIZE 1024   // bumped from 1024 - too small even before this change
+
+static StackType_t mqtt_task_stack[MQTT_TASK_STACK_SIZE];
+static StaticTask_t mqtt_task_tcb;
+
+static StackType_t canbus_task_stack[CANBUS_TASK_STACK_SIZE];
+static StaticTask_t canbus_task_tcb;
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+
     // esp_log_level_set("*", ESP_LOG_INFO);
     // esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("mbedtls", ESP_LOG_DEBUG);
@@ -502,6 +498,6 @@ void app_main(void)
 
     wifi_event_group = xEventGroupCreate();
 
-    xTaskCreate(CANbus_task, "CANbus_task", 1024, NULL, 0, NULL);
-    xTaskCreate(MQTT_task, "MQTT_task", 4096, NULL, 1, NULL);
+    xTaskCreateStatic(CANbus_task, "CANbus_task", CANBUS_TASK_STACK_SIZE, NULL, 0, canbus_task_stack, &canbus_task_tcb);
+    xTaskCreateStatic(MQTT_task, "MQTT_task", MQTT_TASK_STACK_SIZE, NULL, 1, mqtt_task_stack, &mqtt_task_tcb);
 }

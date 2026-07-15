@@ -26,6 +26,9 @@
 
 EventGroupHandle_t wifi_event_group;
 
+// 0 = idle, 1 = enter provision mode, 2 leave provision mode
+uint8_t provisionCMD = 0;
+
 CanInbox can_inbox = {
     .ids = {
         0x200, 0x201, 0x202, 0x203, 0x204,
@@ -66,7 +69,7 @@ static IRAM_ATTR bool CAN_rx_cb(twai_node_handle_t handle, const twai_rx_done_ev
     };
     if (ESP_OK == twai_node_receive_from_isr(handle, &rx_frame)) {
         if (rx_frame.header.id == 0x754) {
-            // trigger event to start/stop wifi provisioning
+            provisionCMD = rx_frame.buffer[0];
         }
         for (int i = 0; i < USED_CAN_MESSAGES; i++) {
             if (can_inbox.ids[i] == rx_frame.header.id) {
@@ -123,13 +126,17 @@ static void MQTT_task(void *arg) {
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    wifi_startup();
+    init_wifi();
 
     ESP_LOGI(TAG, "starting init sntp and mqtt");
     NTP_fetch_time();
     mqtt_app_start(&client);
 
     while (true) {
+        if (provisionCMD == 1) {
+            start_wifi_provisioning();
+            esp_mqtt_client_reconnect(client);
+        }
         //if there is at least 1 new CAN message, send all new can messages over MQTT
         portDISABLE_INTERRUPTS();
         msgSize = buildCanDataMQTTMessage(&can_inbox, msg);

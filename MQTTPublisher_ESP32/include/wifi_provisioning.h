@@ -21,7 +21,9 @@
 #define WIFI_CONNECTED_EVENT BIT0
 
 extern EventGroupHandle_t wifi_event_group;
+extern uint8_t provisionCMD;
 
-void wifi_startup(void);
+void init_wifi(void);
+void start_wifi_provisioning();
 
 #endif //MQTTPUBLISHER_ESP32_WIFI_PROVISIONING_H

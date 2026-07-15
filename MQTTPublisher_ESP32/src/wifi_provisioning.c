@@ -4,6 +4,16 @@
 
 #include "wifi_provisioning.h"
 
+uint8_t custom_service_uuid[] = {
+    /* LSB <---------------------------------------
+     * ---------------------------------------> MSB */
+    0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
+    0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
+};
+
+// 0 is simply plain text communication.
+network_prov_security_t security = 0;
+
 /* prov_Event handler for catching system events */
 static void prov_event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data)
@@ -50,8 +60,11 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
             esp_wifi_connect();
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
-            ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
-            esp_wifi_connect();
+            // only attempted to reconnect if there is no provisioning happening
+            if (provisionCMD != 1) {
+                ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
+                esp_wifi_connect();
+            }
             break;
         default:
             break;
@@ -90,7 +103,7 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-void wifi_startup(void) {
+void init_wifi(void) {
     static const char *TAG = "WiFi_init";
     ESP_ERROR_CHECK(esp_event_handler_register(NETWORK_PROV_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_TRANSPORT_BLE_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
@@ -102,48 +115,46 @@ void wifi_startup(void) {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
+    /* Start Wi-Fi in station mode */
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_start());
+}
+
+void start_wifi_provisioning() {
+    static const char *TAG = "WiFi_Provisioning";
+
+    esp_wifi_disconnect();
+
     network_prov_mgr_config_t config = {
         .scheme = network_prov_scheme_ble,
         .scheme_event_handler = NETWORK_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM
     };
     ESP_ERROR_CHECK(network_prov_mgr_init(config));
 
-    bool wifiProvisioned = false;
-    // uncomment to always trigger provisioning on startup
-    // network_prov_mgr_reset_wifi_provisioning();
+    network_prov_scheme_ble_set_service_uuid(custom_service_uuid);
+    ESP_ERROR_CHECK(network_prov_mgr_start_provisioning(security, nullptr, "Hi-Horizon Bluetooth provisioning", nullptr));
+    while (xEventGroupGetBits(wifi_event_group) != WIFI_CONNECTED_EVENT) {
+        // if stop signal from canbus is received, stop provisioning and ext function, check if wifi is still intact
+        if (provisionCMD == 2) {
+            network_prov_mgr_stop_provisioning();
+            ESP_ERROR_CHECK(esp_wifi_disconnect());
+            ESP_ERROR_CHECK(esp_wifi_stop());
+            ESP_ERROR_CHECK(esp_wifi_deinit());
 
-    ESP_ERROR_CHECK(network_prov_mgr_is_wifi_provisioned(&wifiProvisioned));
-    //
-    if (!wifiProvisioned) {
-        ESP_LOGI(TAG, "WiFi not provisioned yet, starting provisioning...");
-        uint8_t custom_service_uuid[] = {
-            /* LSB <---------------------------------------
-             * ---------------------------------------> MSB */
-            0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
-            0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
-        };
-        // 0 is simply plain text communication.
-        network_prov_security_t security = 0;
-        network_prov_scheme_ble_set_service_uuid(custom_service_uuid);
+            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+            ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-        ESP_ERROR_CHECK(network_prov_mgr_start_provisioning(security, nullptr, "Hi-Horizon Bluetooth provisioning", nullptr));
-        network_prov_mgr_wait();
-        vTaskDelay(100); //wait to make sure all rtos locks are released correctly
-        network_prov_mgr_deinit();
-    } else {
-        ESP_LOGI(TAG, "Already provisioned, starting Wi-Fi STA");
-
-        /* We don't need the manager as device is already provisioned,
-         * so let's release it's resources */
-        ESP_ERROR_CHECK(network_prov_mgr_deinit());
-
-        /* Start Wi-Fi in station mode */
-        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &prov_event_handler, NULL));
-        ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_start());
+            ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+            ESP_ERROR_CHECK(esp_wifi_start());
+            break;
+        }
+        vTaskDelay(10);
     }
-    // /* Wait for Wi-Fi connection */
-    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, portMAX_DELAY);
-    esp_wifi_set_ps(WIFI_PS_NONE);
+    xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_EVENT);
+    vTaskDelay(100);
+    network_prov_mgr_deinit();
+    provisionCMD = 0;
 }

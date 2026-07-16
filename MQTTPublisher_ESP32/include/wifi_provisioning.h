@@ -17,11 +17,13 @@
 #include <esp_log.h>
 #include "network_provisioning/manager.h"
 #include "network_provisioning/scheme_ble.h"
+#include "statusCode.h"
 
 #define WIFI_CONNECTED_EVENT BIT0
 
 extern EventGroupHandle_t wifi_event_group;
 extern uint8_t provisionCMD;
+extern volatile uint8_t espStatus;
 
 void init_wifi(void);
 void start_wifi_provisioning();

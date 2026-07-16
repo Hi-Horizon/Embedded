@@ -22,12 +22,20 @@
 
 #include "NTP.h"
 #include "CANbus.h"
+#include "statusCode.h"
 #include "wifi_provisioning.h"
 
 EventGroupHandle_t wifi_event_group;
 
 // 0 = idle, 1 = enter provision mode, 2 leave provision mode
 uint8_t provisionCMD = 0;
+
+volatile uint8_t espStatus =
+    CAN_RX_FAILED   |
+    CAN_TX_FAILED   |
+    NTP_NOT_SYNCED  |
+    WIFI_NOT_INIT   |
+    MQTT_NOT_INIT;
 
 CanInbox can_inbox = {
     .ids = {
@@ -62,6 +70,7 @@ static IRAM_ATTR bool twai_sender_on_error_callback(twai_node_handle_t handle, c
 // Callback function for CANbus rx_receive, puts message in CANinbox
 static IRAM_ATTR bool CAN_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx)
 {
+    updateStatus(&espStatus, CAN_RX_STATE_MASK, CAN_RX_WORKING);
     uint8_t recv_buff[8];
     twai_frame_t rx_frame = {
         .buffer = recv_buff,
@@ -107,10 +116,10 @@ static void CANbus_task(void *arg) {
         time_t now;
         time(&now);
         uint32_t currentTime = (int32_t) now;
-
-        buildEspStatusFrame(esp_stats_tx_buffer, currentTime);
-        ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &esp_stats_tx_frame, 500));
-
+        buildEspStatusFrame(esp_stats_tx_buffer, espStatus, currentTime);
+        const esp_err_t transmitResult = twai_node_transmit(node_hdl, &esp_stats_tx_frame, 500);
+        if (transmitResult != ESP_OK)   updateStatus(&espStatus, CAN_TX_STATE_MASK, CAN_TX_FAILED);
+        else                            updateStatus(&espStatus, CAN_TX_STATE_MASK, CAN_TX_WORKING);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -142,7 +151,9 @@ static void MQTT_task(void *arg) {
         msgSize = buildCanDataMQTTMessage(&can_inbox, msg);
         portENABLE_INTERRUPTS();
         if (msgSize > 0) { // only send if there are new messages
-            esp_mqtt_client_publish(client, "data", (const char*)msg, msgSize, 0, 0);
+            int publishResult = esp_mqtt_client_publish(client, "data", (const char*)msg, msgSize, 0, 0);
+            if (publishResult == -1)   updateStatus(&espStatus, MQTT_STATE_MASK, MQTT_FAILED);
+            else                       updateStatus(&espStatus, MQTT_STATE_MASK, MQTT_CONNECTED);
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -179,4 +190,8 @@ void app_main(void)
 
     xTaskCreateStatic(CANbus_task, "CANbus_task", CANBUS_TASK_STACK_SIZE, NULL, 0, canbus_task_stack, &canbus_task_tcb);
     xTaskCreateStatic(MQTT_task, "MQTT_task", MQTT_TASK_STACK_SIZE, NULL, 1, mqtt_task_stack, &mqtt_task_tcb);
+    while (true) {
+        ESP_LOGI("STATUS", "%i", espStatus);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }

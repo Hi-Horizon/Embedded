@@ -8,6 +8,9 @@
 #include <esp_netif_sntp.h>
 #include <esp_log.h>
 #include <time.h>
+#include "statusCode.h"
+
+extern volatile uint8_t espStatus;
 
 void NTP_fetch_time(void);
 

@@ -12,6 +12,9 @@
 #include <string.h>
 #include <esp_log.h>
 #include "mqtt_client.h"
+#include "statusCode.h"
+
+extern volatile uint8_t espStatus;
 
 // config options
 #define CONFIG_BROKER_URI                      "mqtts://7f15879e36cf4f3781ca3df1f338b397.s1.eu.hivemq.cloud:8883"

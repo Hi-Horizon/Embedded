@@ -33,6 +33,7 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
             break;
         }
         case NETWORK_PROV_WIFI_CRED_FAIL: {
+            updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_FAILED);
             network_prov_wifi_sta_fail_reason_t *reason = (network_prov_wifi_sta_fail_reason_t *)event_data;
             ESP_LOGE(TAG, "Provisioning failed!\n\tReason : %s"
                      "\n\tPlease reset to factory and retry provisioning",
@@ -57,12 +58,15 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
     } else if (event_base == WIFI_EVENT) {
         switch (event_id) {
         case WIFI_EVENT_STA_START:
+            updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_CONNECTING);
             esp_wifi_connect();
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
+            updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_FAILED);
             // only attempted to reconnect if there is no provisioning happening
             if (provisionCMD != 1) {
                 ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
+                updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_CONNECTING);
                 esp_wifi_connect();
             }
             break;
@@ -74,6 +78,7 @@ static void prov_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Connected with IP Address:" IPSTR, IP2STR(&event->ip_info.ip));
         /* Signal main application to continue execution */
         ESP_LOGI(TAG, "sending wifi connected signal");
+        updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_CONNECTED);
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_EVENT);
     } else if (event_base == PROTOCOMM_TRANSPORT_BLE_EVENT) {
         switch (event_id) {
@@ -126,6 +131,7 @@ void start_wifi_provisioning() {
     static const char *TAG = "WiFi_Provisioning";
 
     esp_wifi_disconnect();
+    updateStatus(&espStatus, WIFI_STATE_MASK, WIFI_PROVISIONING);
 
     network_prov_mgr_config_t config = {
         .scheme = network_prov_scheme_ble,
@@ -135,13 +141,17 @@ void start_wifi_provisioning() {
 
     network_prov_scheme_ble_set_service_uuid(custom_service_uuid);
     ESP_ERROR_CHECK(network_prov_mgr_start_provisioning(security, nullptr, "Hi-Horizon Bluetooth provisioning", nullptr));
+    xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_EVENT);
     while (xEventGroupGetBits(wifi_event_group) != WIFI_CONNECTED_EVENT) {
         // if stop signal from canbus is received, stop provisioning and ext function, check if wifi is still intact
         if (provisionCMD == 2) {
             network_prov_mgr_stop_provisioning();
+            ESP_LOGI(TAG, "cancelling provision");
             ESP_ERROR_CHECK(esp_wifi_disconnect());
             ESP_ERROR_CHECK(esp_wifi_stop());
             ESP_ERROR_CHECK(esp_wifi_deinit());
+
+            ESP_LOGI(TAG, "WiFi deinit");
 
             wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
             ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -149,6 +159,8 @@ void start_wifi_provisioning() {
             ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
             ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
             ESP_ERROR_CHECK(esp_wifi_start());
+
+            ESP_LOGI(TAG, "WiFi init");
             break;
         }
         vTaskDelay(10);

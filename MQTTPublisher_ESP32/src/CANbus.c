@@ -33,9 +33,9 @@ void CANbus_app_start(twai_node_handle_t *node_hdl, twai_event_callbacks_t *user
     ESP_LOGI(TAG, "TWAI Sender started successfully");
 }
 
-void buildEspStatusFrame(uint8_t *buf, uint32_t currentTime) {
+void buildEspStatusFrame(uint8_t *buf, uint8_t espStatus, uint32_t currentTime) {
     int32_t index = 0;
-    buffer_append_uint8(buf, 0, &index);
+    buffer_append_uint8(buf, espStatus, &index);
     buffer_append_uint8(buf, 0, &index);
     buffer_append_uint8(buf, 0, &index);
     buffer_append_uint32(buf, currentTime, &index);

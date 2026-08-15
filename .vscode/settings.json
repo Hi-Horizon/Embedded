@@ -2,5 +2,6 @@
     "cmake.cmakePath": "cube-cmake",
     "cmake.configureArgs": [
         "-DCMAKE_COMMAND=cube-cmake"
-    ]
+    ],
+    "cmake.sourceDirectory": "/home/senne/Documents/projects/Hi-horizon/repositories/Embedded/MTU_STM32"
 }

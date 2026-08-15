@@ -12,6 +12,9 @@ FATFS *pfs;
 DWORD fre_clust;
 FIL file;
 
+uint32_t logNum = 0;
+char dataLogFileName[32] = {};
+
 FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 	FRESULT status = FR_OK;
 
@@ -21,6 +24,19 @@ FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 
 	total[0] = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space[0] = (uint32_t)(fre_clust * pfs->csize * 0.5);
+
+	//read next fileNumber from metadata
+	status = f_open(&file, ".metadata", FA_READ);
+	status = f_read(&file, &logNum, 4, NULL);
+	status = f_close(&file);
+
+	//write + 1 to metadata fileNumber
+	logNum = logNum + 1;
+	status = f_open(&file, ".metadata", FA_OPEN_ALWAYS | FA_WRITE);
+	status = f_write(&file, &logNum, 4, NULL);
+	status = f_close(&file);
+
+	sprintf(dataLogFileName, "dataLog_%lu.csv", logNum);
 
 	writeDataHeaderToSD();
 	return status;
@@ -40,8 +56,9 @@ FRESULT writeDataHeaderToSD() {
 		"ESC_failures,"
 		"ESC_batteryVoltage,"
 		"ESC_InputCurrent,"
+		"ESC_rpm,"
 		"BMS_batteryVoltage,"
-		"BMS_batteryCurrentCharge"
+		"BMS_batteryCurrentCharge,"
 		"BMS_batteryCurrent,"
 		"min_cell_voltage,"
 		"max_cell_voltage,"
@@ -82,7 +99,7 @@ FRESULT writeDataHeaderToSD() {
 		"Bal_temp_1,"
 		"Bal_temp_2,"
 		"\n";
-	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	f_open(&file, dataLogFileName, FA_OPEN_APPEND | FA_READ | FA_WRITE);
 	FRESULT fresult = f_write(&file, header, strlen(header), NULL);
 	f_close(&file);
 
@@ -91,8 +108,8 @@ FRESULT writeDataHeaderToSD() {
 
 FRESULT writeDataFrameToSD(DataFrame* data) {
 	char row[1024];
-	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
-		data->telemetry.unixTime,
+	int size = sprintf(row, "%lu,%lu,%u,%.4f,%.4f,%.2f,%hu,%u,%u,%.3f,%.3f,%.0f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,",
+		data->mtu.unixTime,
 		data->esp.NTPtime,
 		data->gps.fix,
 		data->gps.lat,
@@ -103,6 +120,7 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 		data->motor.failures,
 		data->motor.battery_voltage,
 		data->motor.battery_current,
+		data->motor.rpm,
 		data->bms.battery_voltage,
 		data->bms.battery_current,
 		data->bms.charge_current,
@@ -133,9 +151,9 @@ FRESULT writeDataFrameToSD(DataFrame* data) {
 	row[size] = '\n';
 	size++;
 
-	f_open(&file, "dataLog.txt", FA_OPEN_APPEND | FA_READ | FA_WRITE);
-	FRESULT fresult = f_write(&file, &row, size, NULL);
-	f_close(&file);
+	FRESULT fresult = f_open(&file, dataLogFileName, FA_OPEN_APPEND | FA_READ | FA_WRITE);
+	fresult = f_write(&file, &row, size, NULL);
+	fresult = f_close(&file);
 
 	return fresult;
 }
@@ -175,9 +193,9 @@ FRESULT saveWifiCredentialsRaw(uint8_t *buf, uint32_t length) {
 }
 
 FRESULT readWifiCredentialsRaw(uint8_t *buf, uint8_t *bytesRead) {
-	f_open(&file, "wifi.txt", FA_READ);
-	FRESULT fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
-	f_close(&file);
+	FRESULT fresult = f_open(&file, "wifi.txt", FA_READ);
+	fresult = f_read(&file, buf, 258, (UINT*) bytesRead);
+	fresult = f_close(&file);
 
 	return fresult;
 }

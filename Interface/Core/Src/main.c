@@ -23,10 +23,12 @@
 /* USER CODE BEGIN Includes */
 #include "stdbool.h"
 #include "i2c-lcd.h"
+#include "ez-soc.h"
 #include <DataFrame.h>
 #include <CANparser/CANparser.h>
 #include <stdio.h>
 #include <string.h>
+#include "propeller_efficiency.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -82,8 +84,8 @@ bool blockWifiBtn = false;
 uint32_t lastWifiPress = 0;
 
 unsigned long lastRefresh = 0;
-char screenStr[80];
-int screenCharSize;
+char screenStr[81];
+int screenCharSize = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,7 +105,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	if (RxHeader.Identifier == 0x753) {
 		requestWifiConfigMode = 0;
 	}
-	CAN_parseMessage(RxHeader.Identifier, RxData, &data);
+	CAN_parseMessage(RxHeader.Identifier, RxData, &data, HAL_GetTick());
 }
 
 void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, bool requestWifiConfigMode) {
@@ -130,6 +132,27 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
     if(GPIO_PIN == GPIO_PIN_5) {
     	triggerReset = true;
     }
+}
+
+//
+// chooses a datasource for value based on a priority and if time since last msg has succeeded,
+// source 1 has priority over source 2
+//
+// @param source1, 		value of datasource with 1st priority
+// @param timeSource1, 	time of last_msg from datasource with 1st priority
+// @param source2, 		value of datasource with 2nd priority
+// @param timeSource2, 	time of last_msg from datasource with 2nd priority
+// @returns, value from the chosen datasource
+//
+float chooseDataSource(float source1, uint32_t timeSource1, float source2, uint32_t timeSource2) {
+	//if lastMsg was less than 3s ago, return dataSource value
+	if ((HAL_GetTick() - timeSource1) < 3000) {
+		return source1;
+	} else if ((HAL_GetTick() - timeSource2) < 3000){
+		return  source2;
+	} else {
+		return -1;
+	}
 }
 
 float float_overflowCheck(float val, float replace) {
@@ -165,21 +188,70 @@ int _write(int file, char *ptr, int len)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void mainScreen() {
+	float Vbat = chooseDataSource(data.bms.battery_voltage, data.bms.last_msg, data.motor.battery_voltage, data.motor.last_msg);
 
-void screen0() {
 	float Pmotor = (data.motor.battery_voltage * data.motor.battery_current);
-	float Pzon = data.bms.battery_voltage*data.bms.charge_current;
-	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
-	screenCharSize = sprintf(screenStr,
-		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f WIFI    %02i",
-		uint16_overflowCheck(Pzon, (uint16_t) 999999),
-		float_overflowCheck(Pmotor, 999999),
-		float_overflowCheck(data.motor.rpm, 99999999.99),
-		float_overflowCheck(data.gps.speed, 999.99),
-		float_overflowCheck(data.motor.battery_voltage, 999.99),
-		float_overflowCheck(data.motor.controller_temp, 999.99),
-		uint8_overflowCheck(data.esp.status, 99)
-	);
+	float Pzon = Vbat*data.bms.charge_current;
+
+	float beukerEfficiency 		= calc_propeller_efficiency(Pmotor, data.motor.rpm, data.gps.speed, PROP_BEUKER);
+	float werkpaardEfficiency 	= calc_propeller_efficiency(Pmotor, data.motor.rpm, data.gps.speed, PROP_WERKPAARD);
+
+//	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
+//	screenCharSize += sprintf(screenStr,
+//		"Pin %5i Pou %6.0fRPM %16.2fVEL%6.2f Vba %6.2fTmc%6.2f WIFI    %02i",
+//		uint16_overflowCheck(Pzon, (uint16_t) 999999),
+//		float_overflowCheck(Pmotor, 999999),
+//		float_overflowCheck(data.motor.rpm, 99999999.99),
+//		float_overflowCheck(data.gps.speed, 999.99),
+//		float_overflowCheck(data.motor.battery_voltage, 999.99),
+//		float_overflowCheck(data.motor.controller_temp, 999.99),
+//		uint8_overflowCheck(data.esp.status, 99)
+//	);
+	screenCharSize = 0;
+	if (HAL_GetTick() - data.bms.last_msg > 5000)
+		screenCharSize += sprintf(screenStr, "Pin     - ");
+	else
+		screenCharSize += sprintf(screenStr, "Pin %5i ", uint16_overflowCheck(Pzon, (uint16_t) 999999));
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "Pou      -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "Pou %6.0f", float_overflowCheck(Pmotor, 999999));
+
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) || (HAL_GetTick() - data.gps.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:--/-- ");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "EFF:%02.0f/%02.0f ",
+			float_overflowCheck(werkpaardEfficiency*100, 99),
+			float_overflowCheck(beukerEfficiency*100, 99)
+		);
+
+	if (HAL_GetTick() - data.motor.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM ------");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "RPM %6.0f", float_overflowCheck(data.motor.rpm, 999999));
+
+	if (HAL_GetTick() - data.gps.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL     - ");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
+
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99));
+
+	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99));
+
+	if (HAL_GetTick() - data.esp.last_msg > 5000)
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");
+	else
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI    %02i", uint8_overflowCheck(data.esp.status, 99));
+
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);
 	}
@@ -187,14 +259,15 @@ void screen0() {
 		lcd_send_data(' ');
 	}
 }
-void screen1() {
+
+void statusScreen() {
 	//format, numbers give the max digits allowed
 	//S = state, W = warning, F = failure
 	//motor:W (2) F (7)
 	//mppt:	S (1) F (3)
 	//fix (1) antenna (1)
 	//WiFi (1) time (5)
-	uint8_t seconds = (int) (data.telemetry.unixTime % 60);
+	uint8_t seconds = (int) (data.mtu.unixTime % 60);
 	screenCharSize = sprintf(screenStr,
 		"motor:W %2i F %7ifix %2i %4 antenna %imppt :S %2i ERR %5iWiFi %i %3  time %4i",
 		uint8_overflowCheck(data.motor.warning, (uint8_t) 99),
@@ -211,7 +284,40 @@ void screen1() {
 	}
 }
 
-void screen2() {
+void batteryStatisticsScreen() {
+	data.bms.max_cel_voltage = data.bms.cell_voltage[0];
+	data.bms.min_cel_voltage = data.bms.cell_voltage[0];
+	for (int i = 0; i < 14; i++) {
+		float currentcellvoltage = data.bms.cell_voltage[i];
+		if (currentcellvoltage > data.bms.max_cel_voltage) {
+			data.bms.max_cel_voltage = currentcellvoltage;
+		}
+		if (currentcellvoltage < data.bms.min_cel_voltage) {
+			data.bms.min_cel_voltage = currentcellvoltage;
+		}
+	}
+//	float TcellAvg = (data.bms.cell_temp[0] + data.bms.cell_temp[1] + data.bms.cell_temp[2] + data.bms.cell_temp[3]) / 4;
+	screenCharSize = sprintf(screenStr,
+		"Vbat %2.2f  Cbat %3.0fVmin %1.3fVmax %1.3fCharge %3.0f%10 Temp %3.0f/%3.0f/%3.0f/%3.0f",
+		float_overflowCheck(data.bms.battery_voltage, 99.99),
+		float_overflowCheck(data.bms.charge_current, 99.99),
+		float_overflowCheck(data.bms.max_cel_voltage, 9.999),
+		float_overflowCheck(data.bms.min_cel_voltage, 9.999),
+		float_overflowCheck(data.bms.battery_current, 99.99),
+		float_overflowCheck(data.bms.cell_temp[0], 199.99),
+		float_overflowCheck(data.bms.cell_temp[1], 199.99),
+		float_overflowCheck(data.bms.cell_temp[2], 199.99),
+		float_overflowCheck(data.bms.cell_temp[3], 199.99)
+	);
+	for (int i = 0; i < screenCharSize; i++) {
+		lcd_send_data(screenStr[i]);
+	}
+	for (int i = screenCharSize; i < 80; i++) {
+		lcd_send_data(' ');
+	}
+}
+
+void wifiConfigModeScreen() {
 	screenCharSize = sprintf(screenStr, "- Wifi Setup Mode - Hi-Horizon TelemetryConnect to HotSpot: To send new config");
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);
@@ -226,13 +332,13 @@ void drawDataScreen(int screencode) {
   lcd_send_cmd (0x80|0x00);
   switch (screencode) {
     case 0:
-    	screen0();
+    	mainScreen();
     	break;
     case 1:
-    	screen1();
+    	statusScreen();
     	break;
     case 2:
-    	screen2();
+    	wifiConfigModeScreen();
     	break;
   }
 }
@@ -307,7 +413,7 @@ int main(void)
   data.motor.controller_temp = (uint8_t) 255;
   data.bms.cells_temp = 9999999;
 
-  data.bms.battery_voltage = 9999999;
+  data.bms.battery_voltage = 99999999;
   data.bms.charge_current = 9999999;
   data.bms.cell_temp[0] = 9999999;
   data.bms.cell_temp[1] = 9999999;
@@ -315,6 +421,11 @@ int main(void)
   data.bms.cell_temp[3] = 9999999;
 
   data.esp.status = 99;
+
+  data.bms.last_msg = -5000;
+  data.motor.last_msg = -5000;
+  data.gps.last_msg = -5000;
+  data.esp.last_msg = -5000;
   /* USER CODE END 2 */
 
   /* Infinite loop */

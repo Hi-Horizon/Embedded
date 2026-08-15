@@ -12,6 +12,7 @@
 #include "WIFI_setup/WIFI_setup.h"
 
 #include <DataFrame.h>
+#include <CANInbox.h>
 #include <buffer.h>
 #include <ESP8266WebServer.h>
 #include <DNSServer.h>
@@ -21,6 +22,7 @@
 #include <SSLcerts_API/SSLcerts_API.h>
 #include <CAN_API/CAN_API.h>
 
+CanInbox canInbox;
 DataFrame dataFrame;
 WifiCredentials wifiCredentials;
 WifiCredentials newWifiCredentials;
@@ -51,7 +53,7 @@ bool newData = false;
 struct can_frame canRxMsg;
 struct can_frame canEspTxMsg;
 struct can_frame canWifiCredentialsTxMsg;
-MCP2515 mcp2515(D8);
+MCP2515 mcp2515(D8, 4000000);
 
 void setup() {
   //SERIAL INIT
@@ -92,7 +94,7 @@ void loop() {
   //MQTT client routine
   client->loop();
   updateConnectionStatus();
-  readAndParseCan(&mcp2515, &canRxMsg, &dataFrame, &newData);
+  readAndParseCan(&mcp2515, &canRxMsg, &dataFrame, &canInbox, &newData);
 
   if (millis() - lastEspInfoSend > 1000L) {
     sendEspInfoToCan(&mcp2515, &canEspTxMsg, &dataFrame);
@@ -100,7 +102,7 @@ void loop() {
   }
 
   if (millis() - lastMsg > 1000L) {
-    sendDataToBroker(client, &dataFrame, &newData, &lastMsg);
+    sendDataToBroker(client, &canInbox, &newData, &lastMsg);
   }
   
   if (dataFrame.esp.wifiSetupControl == 1) {

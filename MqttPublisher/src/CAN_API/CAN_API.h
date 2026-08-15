@@ -6,11 +6,12 @@
 #include "mcp2515.h"
 #include "CANparser.h"
 #include "DataFrame.h"
+#include "CANInbox.h"
 #include "buffer.h"
 
 void initCan(MCP2515* mcp2515, can_frame* canEspTxMsg, can_frame* canWifiCredentialsTxMsg);
 void sendEspInfoToCan(MCP2515* mcp2515, can_frame* canEspTxMsg, DataFrame* dataFrame);
-void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, bool* newDataFlag);
+void readAndParseCan(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame, CanInbox* CANinbox, bool* newDataFlag);
 
 void canListenForWifiConfigToggle(MCP2515* mcp2515, can_frame* canRxMsg, DataFrame* dataFrame);
 uint8_t listenForWiFiCredentialsCan(MCP2515* mcp2515, can_frame* canRxMsg, WifiCredentials *wifiCredentials, unsigned long timeout);

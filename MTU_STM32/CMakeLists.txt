@@ -38,8 +38,8 @@ add_executable(${CMAKE_PROJECT_NAME})
 add_subdirectory(cmake/stm32cubemx)
 # Add Commons sources
 add_subdirectory(
-    ${CMAKE_SOURCE_DIR}/../commons
-    ${CMAKE_BINARY_DIR}/commons
+    ${CMAKE_SOURCE_DIR}/../Commons
+    ${CMAKE_BINARY_DIR}/Commons
 )
 
 # Link directories setup

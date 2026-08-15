@@ -17,9 +17,10 @@ char dataLogFileName[32] = {};
 
 FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 	FRESULT status = FR_OK;
-	status = f_mount(fs,"/",1);
 
-	status = f_getfree("/", &fre_clust, &pfs);
+	status = f_mount(fs,"0:/",1);
+
+	status = f_getfree("0:/", &fre_clust, &pfs);
 
 	total[0] = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space[0] = (uint32_t)(fre_clust * pfs->csize * 0.5);

@@ -9,6 +9,7 @@
 #define INC_PROPELLER_EFFICIENCY_H_
 
 #include "math.h"
+#include "stdint.h"
 #include <stdio.h>
 
 #define PROP_BEUKER 0

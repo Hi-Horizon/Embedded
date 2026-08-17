@@ -235,22 +235,22 @@ void mainScreen() {
 	if (HAL_GetTick() - data.gps.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99f));
 
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99f));
 
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99f));
 
 	if (HAL_GetTick() - data.esp.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI    %02i", uint8_overflowCheck(data.esp.status, 99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI   %03u", uint8_overflowCheck(data.esp.status, 255));
 
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);

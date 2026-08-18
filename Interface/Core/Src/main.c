@@ -66,7 +66,7 @@ DataFrame data;
 
 // I/O
 #define menuItems 2
-uint32_t menuSelect = 0;
+int menuSelect = 0;
 uint32_t counter = 0;
 
 bool triggerReset = false;
@@ -76,7 +76,7 @@ bool blockbtn = false;
 uint32_t lastPress = 0;
 
 //wifiConfig button
-bool requestWifiConfigMode = false;
+uint8_t requestWifiConfigMode = false;
 bool sendRequestWifiConfigMode = false;
 
 bool blockWifiBtn = false;
@@ -108,15 +108,15 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data, HAL_GetTick());
 }
 
-void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, bool requestWifiConfigMode) {
+void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, uint8_t requestWifiConfigMode) {
 	uint8_t txBuf[8] = {};
 	txBuf[0] = requestWifiConfigMode;
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiConfigModeControl, txBuf);
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-	menuSelect = (__HAL_TIM_GET_COUNTER(htim) / 4) % menuItems;
-	drawDataScreen(menuSelect);
+	// menuSelect = (__HAL_TIM_GET_COUNTER(htim) / 4) % menuItems;
+	// drawDataScreen(menuSelect);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
@@ -126,7 +126,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 	}
     if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) {
     	sendRequestWifiConfigMode = true;
-		requestWifiConfigMode = !requestWifiConfigMode;
+    	// if esp32 is not in wifiprovisionmode, send signal to start, otherwise send cancel signal
+    	if ((data.esp.status & 0b00111000) != 8)	requestWifiConfigMode = 1;
+    	else										requestWifiConfigMode = 2;
 		blockWifiBtn = true;
     }
     if(GPIO_PIN == GPIO_PIN_5) {
@@ -235,22 +237,22 @@ void mainScreen() {
 	if (HAL_GetTick() - data.gps.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "VEL     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "VEL%6.2f ", float_overflowCheck(data.gps.speed, 999.99f));
 
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "SOC      -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "SOC%7.2f", float_overflowCheck(calculateSOC(Vbat), 99.99f));
 
 	if ((HAL_GetTick() - data.motor.last_msg > 5000) && (HAL_GetTick() - data.bms.last_msg > 5000))
 		screenCharSize += sprintf(screenStr + screenCharSize, "Vba     - ");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "Vba %5.2f ", float_overflowCheck(Vbat, 99.99f));
 
 	if (HAL_GetTick() - data.esp.last_msg > 5000)
 		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI     -");
 	else
-		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI    %02i", uint8_overflowCheck(data.esp.status, 99));
+		screenCharSize += sprintf(screenStr + screenCharSize, "WIFI   %03u", uint8_overflowCheck(data.esp.status, 255));
 
 	for (int i = 0; i < screenCharSize; i++) {
 		lcd_send_data(screenStr[i]);
@@ -350,6 +352,7 @@ void drawDataScreen(int screencode) {
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -452,10 +455,15 @@ int main(void)
 	}
 
 	if (HAL_GetTick() - lastRefresh > 1000L) {
-		toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
+		if (requestWifiConfigMode != 0)
+		{
+			toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
+			requestWifiConfigMode = 0;
+		}
 
-		if (requestWifiConfigMode == 1) drawDataScreen(2);
-		else 					   drawDataScreen(menuSelect);
+		// if (requestWifiConfigMode == 1) drawDataScreen(2);
+		// else 					   drawDataScreen(menuSelect);
+		drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();
 		//send screen status through CAN
 		int32_t ind = 0;
@@ -573,7 +581,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x30A0A7FB;
+  hi2c1.Init.Timing = 0x40B285C2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -709,6 +717,9 @@ static void MX_TIM2_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -763,6 +774,9 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -783,8 +797,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.

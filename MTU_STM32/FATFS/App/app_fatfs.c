@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -73,7 +73,7 @@ if (FATFS_LinkDriver(&USER_Driver, USERPath) != 0)
   {
     return APP_ERROR;
   }
-  else
+else
   {
     Appli_state = APPLICATION_INIT;
     return APP_OK;

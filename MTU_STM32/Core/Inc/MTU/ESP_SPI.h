@@ -1,7 +1,7 @@
 #ifndef ESP_SPI__H_
 #define ESP_SPI__H_
 
-#include <buffer/buffer.h>
+#include "buffer/buffer.h"
 #include "DataFrame.h"
 #include "SpiConfig/SpiConfig.h"
 #include "stm32g4xx_hal.h"

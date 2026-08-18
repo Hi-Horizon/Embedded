@@ -17,9 +17,16 @@ char dataLogFileName[32] = {};
 
 FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 	FRESULT status = FR_OK;
-	status = f_mount(fs,"/",1);
 
-	status = f_getfree("/", &fre_clust, &pfs);
+	for (int i = 0; i < 4; i++)
+	{
+		status = f_mount(fs,"0:/",1);
+		if (status == FR_OK) break;
+		HAL_Delay(100);
+	}
+	if (status != FR_OK) return status;
+
+	status = f_getfree("0:/", &fre_clust, &pfs);
 
 	total[0] = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
 	free_space[0] = (uint32_t)(fre_clust * pfs->csize * 0.5);
@@ -43,7 +50,6 @@ FRESULT initSD(FATFS* fs, uint32_t* total, uint32_t* free_space) {
 
 FRESULT writeDataHeaderToSD() {
 	const char* header =
-		"\n"
 		"time,"
 		"time_NTP,"
 		"GPS_fix,"

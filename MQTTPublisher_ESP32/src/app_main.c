@@ -22,6 +22,7 @@
 
 #include "NTP.h"
 #include "CANbus.h"
+#include "CANInbox.h"
 #include "statusCode.h"
 #include "wifi_provisioning.h"
 

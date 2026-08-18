@@ -122,7 +122,7 @@ dependencies:
       type: service
     version: 1.2.0
   espressif/mqtt:
-    component_hash: ffdad5659706b4dc14bc63f8eb73ef765efa015bf7e9adf71c813d52a2dc9342
+    component_hash: fb18bc3b65aa8c94693a9811ffc322cca8a65d92d5ec84983d3e385080e3969c
     dependencies:
     - name: idf
       require: private
@@ -130,7 +130,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.0
+    version: 1.1.0
   espressif/network_provisioning:
     component_hash: 72d27784e3daf807418a34fb00be136ec50c6db49d989ce981d22e031fc0e7f8
     dependencies:
@@ -158,7 +158,7 @@ dependencies:
       - if: target != linux
       version: ~1.2.0
     source:
-      path: C:\Users\senne\.platformio\packages\framework-espidf\examples\common_components\protocol_examples_common
+      path: /home/senne/.platformio/packages/framework-espidf/examples/common_components/protocol_examples_common
       type: local
     version: '*'
 direct_dependencies:

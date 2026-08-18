@@ -33,7 +33,11 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f86a3fdb-a2e3-4842-ba77-efe7843247fc" name="Changes" comment="Interface: rework wifi provisioning request logic to match the esp32 wifi provisioning" />
+    <list default="true" id="f86a3fdb-a2e3-4842-ba77-efe7843247fc" name="Changes" comment="Interface: rework wifi provisioning request logic to match the esp32 wifi provisioning">
+      <change beforePath="$PROJECT_DIR$/../Commons/CANparser/CANparser.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Commons/CANparser/CANparser.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Commons/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../Commons/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -106,7 +110,7 @@
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;#33 on esp32__mqttPublisher&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;
   }
 }</component>

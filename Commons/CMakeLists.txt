@@ -14,8 +14,3 @@ target_include_directories(commons PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-idf_component_register(
-        SRCS
-        INCLUDE_DIRS "."
-)
-

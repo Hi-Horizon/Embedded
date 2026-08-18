@@ -52,6 +52,7 @@ DSTATUS disk_initialize (
 	BYTE pdrv				/* Physical drive nmuber to identify the drive */
 )
 {
+  HAL_Delay(10);
   DSTATUS stat = RES_OK;
 
   if(disk.is_initialized[pdrv] == 0)

@@ -66,7 +66,7 @@ DataFrame data;
 
 // I/O
 #define menuItems 2
-uint32_t menuSelect = 0;
+int menuSelect = 0;
 uint32_t counter = 0;
 
 bool triggerReset = false;
@@ -76,7 +76,7 @@ bool blockbtn = false;
 uint32_t lastPress = 0;
 
 //wifiConfig button
-bool requestWifiConfigMode = false;
+uint8_t requestWifiConfigMode = false;
 bool sendRequestWifiConfigMode = false;
 
 bool blockWifiBtn = false;
@@ -108,15 +108,15 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 	CAN_parseMessage(RxHeader.Identifier, RxData, &data, HAL_GetTick());
 }
 
-void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, bool requestWifiConfigMode) {
+void toggleWifiConfigMode(FDCAN_HandleTypeDef* hfdcan1, uint8_t requestWifiConfigMode) {
 	uint8_t txBuf[8] = {};
 	txBuf[0] = requestWifiConfigMode;
 	HAL_FDCAN_AddMessageToTxFifoQ(hfdcan1, &WiFiConfigModeControl, txBuf);
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-	menuSelect = (__HAL_TIM_GET_COUNTER(htim) / 4) % menuItems;
-	drawDataScreen(menuSelect);
+	// menuSelect = (__HAL_TIM_GET_COUNTER(htim) / 4) % menuItems;
+	// drawDataScreen(menuSelect);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
@@ -126,7 +126,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) {
 	}
     if(GPIO_PIN == GPIO_PIN_4 && !blockWifiBtn) {
     	sendRequestWifiConfigMode = true;
-		requestWifiConfigMode = !requestWifiConfigMode;
+    	// if esp32 is not in wifiprovisionmode, send signal to start, otherwise send cancel signal
+    	if ((data.esp.status & 0b00111000) != 8)	requestWifiConfigMode = 1;
+    	else										requestWifiConfigMode = 2;
 		blockWifiBtn = true;
     }
     if(GPIO_PIN == GPIO_PIN_5) {
@@ -453,10 +455,15 @@ int main(void)
 	}
 
 	if (HAL_GetTick() - lastRefresh > 1000L) {
-		toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
+		if (requestWifiConfigMode != 0)
+		{
+			toggleWifiConfigMode(&hfdcan1, requestWifiConfigMode);
+			requestWifiConfigMode = 0;
+		}
 
-		if (requestWifiConfigMode == 1) drawDataScreen(2);
-		else 					   drawDataScreen(menuSelect);
+		// if (requestWifiConfigMode == 1) drawDataScreen(2);
+		// else 					   drawDataScreen(menuSelect);
+		drawDataScreen(menuSelect);
 		lastRefresh = HAL_GetTick();
 		//send screen status through CAN
 		int32_t ind = 0;
